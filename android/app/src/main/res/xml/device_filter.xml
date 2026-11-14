@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espressif ESP32-H2 USB Serial/JTAG (Vendor ID: 0x303A = 12346) -->
+    <usb-device vendor-id="12346" />
+    
+    <!-- Standard USB CDC ACM Communication Devices -->
+    <usb-device class="2" />
+    <usb-device class="10" />
+    <usb-device class="255" />
+</resources>
