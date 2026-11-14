@@ -7,6 +7,7 @@ import '../../../data/models/onion_item.dart';
 import '../../../data/models/activity_event.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/wifi_connection_dialog.dart';
 import '../../../shared/widgets/ble_scan_dialog.dart';
 import '../../../shared/widgets/usb_connection_dialog.dart';
 
@@ -116,6 +117,8 @@ class HomeDashboardScreen extends ConsumerWidget {
                         ),
                         if (sensorState.isSimulation)
                           const StatusBadge(label: 'SIMULATED', color: Colors.orange, isSmall: true)
+                        else if (sensorState.isWifiConnected)
+                          const StatusBadge(label: 'LIVE WI-FI', color: AppConstants.statusGreen, isSmall: true)
                         else if (sensorState.isUsbConnected)
                           const StatusBadge(label: 'LIVE USB', color: AppConstants.statusGreen, isSmall: true)
                         else if (sensorState.isBleConnected)
@@ -175,7 +178,7 @@ class HomeDashboardScreen extends ConsumerWidget {
                             SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'HARDWARE DISCONNECTED • Connect ESP32-H2 via USB-C or launch Demo Mode',
+                                'HARDWARE DISCONNECTED • Connect ESP32 via Wi-Fi or launch Demo Mode',
                                 style: TextStyle(fontSize: 10.5, color: Color(0xFF475569), fontWeight: FontWeight.w600),
                               ),
                             ),
@@ -224,7 +227,7 @@ class HomeDashboardScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.usb_off, color: Color(0xFFB45309), size: 26),
+                    const Icon(Icons.wifi_off, color: Color(0xFFB45309), size: 26),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -236,7 +239,7 @@ class HomeDashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            'Connect ESP32-H2 via USB-C OTG cable (Primary) or pair over BLE.',
+                            'Connect to ESP32 Wi-Fi (OnionGuard-WiFi or local network).',
                             style: TextStyle(fontSize: 11, color: Color(0xFF78350F)),
                           ),
                           const SizedBox(height: 8),
@@ -252,8 +255,18 @@ class HomeDashboardScreen extends ConsumerWidget {
                                   textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                 ),
+                                icon: const Icon(Icons.wifi, size: 14),
+                                label: const Text('Connect via Wi-Fi'),
+                                onPressed: () => showWifiConnectionModal(context, ref),
+                              ),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
                                 icon: const Icon(Icons.usb, size: 14),
-                                label: const Text('Connect USB-C'),
+                                label: const Text('USB-C'),
                                 onPressed: () => showUsbConnectionModal(context, ref),
                               ),
                               OutlinedButton.icon(

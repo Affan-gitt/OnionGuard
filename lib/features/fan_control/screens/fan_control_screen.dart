@@ -5,6 +5,7 @@ import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/wifi_connection_dialog.dart';
 import '../../../shared/widgets/usb_connection_dialog.dart';
 
 class FanControlScreen extends ConsumerWidget {
@@ -44,7 +45,7 @@ class FanControlScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.usb_off, color: Color(0xFFB45309), size: 24),
+                    const Icon(Icons.wifi_off, color: Color(0xFFB45309), size: 24),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -56,21 +57,37 @@ class FanControlScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           const Text(
-                            'Actuator toggles require physical ESP32-H2 link. Connect USB-C cable to operate relays.',
+                            'Actuator toggles require physical ESP32 link. Connect via Wi-Fi or USB-C to operate relays.',
                             style: TextStyle(fontSize: 11, color: Color(0xFF78350F)),
                           ),
                           const SizedBox(height: 6),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppConstants.primaryForest,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                            ),
-                            icon: const Icon(Icons.usb, size: 14),
-                            label: const Text('Connect USB-C'),
-                            onPressed: () => showUsbConnectionModal(context, ref),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppConstants.primaryForest,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                                icon: const Icon(Icons.wifi, size: 14),
+                                label: const Text('Connect via Wi-Fi'),
+                                onPressed: () => showWifiConnectionModal(context, ref),
+                              ),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                                icon: const Icon(Icons.usb, size: 14),
+                                label: const Text('USB-C'),
+                                onPressed: () => showUsbConnectionModal(context, ref),
+                              ),
+                            ],
                           ),
                         ],
                       ),

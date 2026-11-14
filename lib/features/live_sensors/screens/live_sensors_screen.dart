@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../data/models/sensor_reading.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../shared/widgets/metric_card.dart';
+import '../../../shared/widgets/wifi_connection_dialog.dart';
 import '../../../shared/widgets/ble_scan_dialog.dart';
 import '../../../shared/widgets/usb_connection_dialog.dart';
 import '../widgets/live_chart_painter.dart';
@@ -110,9 +111,11 @@ class _LiveSensorsScreenState extends ConsumerState<LiveSensorsScreen> {
                                     child: Text(
                                       sensorState.isSimulation
                                           ? 'SIMULATED DATASTREAM'
-                                          : (sensorState.isUsbConnected
-                                              ? 'ESP32-H2 USB-C CDC FEED'
-                                              : 'ESP32-H2 BLE FEED'),
+                                          : (sensorState.isWifiConnected
+                                              ? 'ESP32 WI-FI FEED'
+                                              : (sensorState.isUsbConnected
+                                                  ? 'ESP32 USB-C CDC FEED'
+                                                  : 'ESP32 BLE FEED')),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
@@ -316,7 +319,7 @@ class _LiveSensorsScreenState extends ConsumerState<LiveSensorsScreen> {
                 color: Colors.grey.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.usb_off, size: 48, color: Colors.grey),
+              child: const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -325,18 +328,28 @@ class _LiveSensorsScreenState extends ConsumerState<LiveSensorsScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'No physical link detected with ESP32-H2.\nIn Live Mode, readings are strictly hardware-sourced and never synthesized.',
+              'No physical link detected with ESP32.\nIn Live Mode, readings are strictly hardware-sourced and never synthesized.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
-              icon: const Icon(Icons.usb, size: 16),
-              label: const Text('Connect via USB-C (Primary)'),
+              icon: const Icon(Icons.wifi, size: 16),
+              label: const Text('Connect via Wi-Fi (Primary)'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryForest,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => showWifiConnectionModal(context, ref),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.usb, size: 16),
+              label: const Text('Connect via USB-C'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () => showUsbConnectionModal(context, ref),

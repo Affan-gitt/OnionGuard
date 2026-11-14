@@ -7,6 +7,7 @@ import '../core/services/ble_service.dart';
 import '../core/services/usb_serial_service.dart';
 import '../core/services/simulation_service.dart';
 import '../core/services/inbound_api_receiver_service.dart';
+import '../core/services/wifi_esp32_service.dart';
 import '../core/utilities/risk_calculator.dart';
 import '../data/models/sensor_reading.dart';
 import '../data/models/actuator_state.dart';
@@ -30,6 +31,14 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 final smsServiceProvider = Provider<SmsService>((ref) {
   final storage = ref.watch(storageServiceProvider);
   return SmsService(storage);
+});
+
+// Primary Wi-Fi ESP32 Hardware Service (ESP32 Wi-Fi + BT SoC)
+final wifiEsp32ServiceProvider = Provider<WifiEsp32Service>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  final service = WifiEsp32Service(storage);
+  ref.onDispose(() => service.dispose());
+  return service;
 });
 
 // Primary USB CDC-ACM Serial Hardware Service
@@ -93,6 +102,7 @@ final settingsNotifierProvider = NotifierProvider<SettingsNotifier, AppSettings>
 class SensorState {
   final SensorReading? latestReading;
   final List<SensorReading> history;
+  final bool isWifiConnected;
   final bool isUsbConnected;
   final bool isBleConnected;
   final bool isSimulation;
@@ -102,6 +112,7 @@ class SensorState {
   SensorState({
     this.latestReading,
     this.history = const [],
+    this.isWifiConnected = false,
     this.isUsbConnected = false,
     this.isBleConnected = false,
     this.isSimulation = false,
@@ -109,12 +120,13 @@ class SensorState {
     this.riskBreakdown,
   });
 
-  bool get isHardwareConnected => isUsbConnected || isBleConnected;
+  bool get isHardwareConnected => isWifiConnected || isUsbConnected || isBleConnected;
   bool get hasValidData => latestReading != null && latestReading!.temperature > -100;
 
   SensorState copyWith({
     SensorReading? latestReading,
     List<SensorReading>? history,
+    bool? isWifiConnected,
     bool? isUsbConnected,
     bool? isBleConnected,
     bool? isSimulation,
@@ -124,6 +136,7 @@ class SensorState {
     return SensorState(
       latestReading: latestReading ?? this.latestReading,
       history: history ?? this.history,
+      isWifiConnected: isWifiConnected ?? this.isWifiConnected,
       isUsbConnected: isUsbConnected ?? this.isUsbConnected,
       isBleConnected: isBleConnected ?? this.isBleConnected,
       isSimulation: isSimulation ?? this.isSimulation,
@@ -134,6 +147,8 @@ class SensorState {
 }
 
 class SensorNotifier extends Notifier<SensorState> {
+  StreamSubscription? _wifiConnSub;
+  StreamSubscription? _wifiDataSub;
   StreamSubscription? _usbConnSub;
   StreamSubscription? _usbDataSub;
   StreamSubscription? _bleConnSub;
@@ -149,6 +164,7 @@ class SensorNotifier extends Notifier<SensorState> {
     final history = storage.getRecentReadings();
     final latest = history.isNotEmpty ? history.last : null;
     final settings = ref.watch(settingsNotifierProvider);
+    final wifi = ref.watch(wifiEsp32ServiceProvider);
     final usb = ref.watch(usbSerialServiceProvider);
     final ble = ref.watch(bleServiceProvider);
     final sim = ref.watch(simulationServiceProvider);
@@ -160,6 +176,8 @@ class SensorNotifier extends Notifier<SensorState> {
     }
 
     ref.onDispose(() {
+      _wifiConnSub?.cancel();
+      _wifiDataSub?.cancel();
       _usbConnSub?.cancel();
       _usbDataSub?.cancel();
       _bleConnSub?.cancel();
@@ -167,7 +185,29 @@ class SensorNotifier extends Notifier<SensorState> {
       _inboundSub?.cancel();
     });
 
-    // 1. Listen to USB connection state
+    // 1. Listen to Wi-Fi ESP32 connection state
+    _wifiConnSub?.cancel();
+    _wifiConnSub = wifi.connectionStateStream.listen((wifiState) {
+      final isConn = wifiState == WifiConnectionState.connected;
+      String statusText = isConn ? 'WI-FI CONNECTED' : 'HARDWARE DISCONNECTED';
+      if (ref.read(simulationServiceProvider).isActive) {
+        statusText = 'SIMULATED';
+      }
+      state = state.copyWith(
+        isWifiConnected: isConn,
+        hardwareStatusText: statusText,
+      );
+    });
+
+    // 2. Listen to real physical Wi-Fi sensor telemetry
+    _wifiDataSub?.cancel();
+    _wifiDataSub = wifi.sensorDataStream.listen((reading) {
+      if (!ref.read(simulationServiceProvider).isActive) {
+        _onNewReading(reading, isSim: false, source: 'ESP32 WI-FI');
+      }
+    });
+
+    // 3. Listen to USB connection state
     _usbConnSub?.cancel();
     _usbConnSub = usb.connectionStateStream.listen((usbState) {
       final isConn = usbState == UsbConnectionState.connected;
@@ -181,7 +221,7 @@ class SensorNotifier extends Notifier<SensorState> {
       );
     });
 
-    // 2. Listen to real physical USB sensor telemetry
+    // 4. Listen to real physical USB sensor telemetry
     _usbDataSub?.cancel();
     _usbDataSub = usb.sensorDataStream.listen((reading) {
       if (!ref.read(simulationServiceProvider).isActive) {
@@ -189,14 +229,14 @@ class SensorNotifier extends Notifier<SensorState> {
       }
     });
 
-    // 3. Listen to BLE connection state
+    // 5. Listen to BLE connection state
     _bleConnSub?.cancel();
     _bleConnSub = ble.connectionStateStream.listen((bleState) {
       final isConn = bleState == BleConnectionState.connected;
       state = state.copyWith(isBleConnected: isConn);
     });
 
-    // 4. Listen to Simulation Stream (Only active when explicitly started)
+    // 6. Listen to Simulation Stream (Only active when explicitly started)
     _simSub?.cancel();
     _simSub = sim.simReadingStream.listen((reading) {
       if (sim.isActive) {
@@ -204,7 +244,7 @@ class SensorNotifier extends Notifier<SensorState> {
       }
     });
 
-    // 5. Listen to Inbound API stream (Receives HTTP POST telemetry)
+    // 7. Listen to Inbound API stream (Receives HTTP POST telemetry)
     _inboundSub?.cancel();
     _inboundSub = inbound.sensorStream.listen((reading) {
       if (!ref.read(simulationServiceProvider).isActive) {
@@ -212,6 +252,7 @@ class SensorNotifier extends Notifier<SensorState> {
       }
     });
 
+    final bool isWifi = wifi.isConnected;
     final bool isUsb = usb.isConnected;
     final bool isBle = ble.isConnected;
     final bool isSim = sim.isActive;
@@ -219,6 +260,8 @@ class SensorNotifier extends Notifier<SensorState> {
     String initialStatus = 'HARDWARE DISCONNECTED';
     if (isSim) {
       initialStatus = 'SIMULATED';
+    } else if (isWifi) {
+      initialStatus = 'WI-FI ACTIVE';
     } else if (isUsb) {
       initialStatus = 'USB CDC ACTIVE';
     } else if (isBle) {
@@ -228,6 +271,7 @@ class SensorNotifier extends Notifier<SensorState> {
     return SensorState(
       latestReading: latest,
       history: history,
+      isWifiConnected: isWifi,
       isUsbConnected: isUsb,
       isBleConnected: isBle,
       isSimulation: isSim,
@@ -266,13 +310,16 @@ class SensorNotifier extends Notifier<SensorState> {
     state = state.copyWith(
       latestReading: reading,
       history: updatedHistory,
+      isWifiConnected: source == 'ESP32 WI-FI' || state.isWifiConnected,
       isUsbConnected: source == 'USB CDC' || state.isUsbConnected,
       isSimulation: isSim,
       hardwareStatusText: isSim
           ? 'SIMULATED'
-          : (source == 'INBOUND API'
-              ? 'INBOUND API ACTIVE'
-              : (source == 'USB CDC' ? 'LIVE USB FEED' : 'LIVE BLE FEED')),
+          : (source == 'ESP32 WI-FI'
+              ? 'LIVE WI-FI FEED'
+              : (source == 'INBOUND API'
+                  ? 'INBOUND API ACTIVE'
+                  : (source == 'USB CDC' ? 'LIVE USB FEED' : 'LIVE BLE FEED'))),
       riskBreakdown: risk,
     );
 
@@ -398,7 +445,7 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
     await ref.read(storageServiceProvider).saveActuatorState(updated);
   }
 
-  /// Toggles physical exhaust fan via USB CDC with strict ACK verification
+  /// Toggles physical exhaust fan via Wi-Fi or USB CDC with strict ACK verification
   Future<bool> toggleFan(bool isOn) async {
     final isSim = ref.read(simulationServiceProvider).isActive;
 
@@ -414,9 +461,11 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
       return true;
     }
 
-    // LIVE HARDWARE MODE: Command physical ESP32 over USB CDC
+    // LIVE HARDWARE MODE: Command physical ESP32 over Wi-Fi or USB CDC
+    final wifi = ref.read(wifiEsp32ServiceProvider);
     final usb = ref.read(usbSerialServiceProvider);
-    if (!usb.isConnected) {
+
+    if (!wifi.isConnected && !usb.isConnected) {
       ref.read(notificationServiceProvider).triggerAlert(
         alertKey: 'fan_cmd_error',
         title: 'COMMAND FAILED',
@@ -428,7 +477,10 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
       return false;
     }
 
-    final ack = await usb.sendActuatorCommand(device: 'fan', state: isOn);
+    final ack = wifi.isConnected
+        ? await wifi.sendActuatorCommand(device: 'fan', state: isOn)
+        : await usb.sendActuatorCommand(device: 'fan', state: isOn);
+
     if (ack.success) {
       final updated = state.copyWith(
         fanState: ack.actualState,
@@ -466,7 +518,7 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
     await ref.read(storageServiceProvider).saveActuatorState(updated);
   }
 
-  /// Toggles physical humidifier demonstration actuator via USB CDC
+  /// Toggles physical humidifier demonstration actuator via Wi-Fi or USB CDC
   Future<bool> toggleHumidifier(bool isOn) async {
     final isSim = ref.read(simulationServiceProvider).isActive;
 
@@ -481,9 +533,11 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
       return true;
     }
 
-    // LIVE HARDWARE MODE: Command physical ESP32 over USB CDC
+    // LIVE HARDWARE MODE: Command physical ESP32 over Wi-Fi or USB CDC
+    final wifi = ref.read(wifiEsp32ServiceProvider);
     final usb = ref.read(usbSerialServiceProvider);
-    if (!usb.isConnected) {
+
+    if (!wifi.isConnected && !usb.isConnected) {
       ref.read(notificationServiceProvider).triggerAlert(
         alertKey: 'hum_cmd_error',
         title: 'COMMAND FAILED',
@@ -495,7 +549,10 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
       return false;
     }
 
-    final ack = await usb.sendActuatorCommand(device: 'humidifier', state: isOn);
+    final ack = wifi.isConnected
+        ? await wifi.sendActuatorCommand(device: 'humidifier', state: isOn)
+        : await usb.sendActuatorCommand(device: 'humidifier', state: isOn);
+
     if (ack.success) {
       final updated = state.copyWith(
         humidifierState: ack.actualState,

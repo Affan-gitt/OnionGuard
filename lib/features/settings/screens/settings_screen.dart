@@ -7,8 +7,8 @@ import '../../../data/models/sms_alert_queue_item.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../shared/widgets/ble_scan_dialog.dart';
 import '../../../shared/widgets/usb_connection_dialog.dart';
+import '../../../shared/widgets/wifi_connection_dialog.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../activity_history/screens/activity_history_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -126,9 +126,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsNotifierProvider);
+    final wifi = ref.watch(wifiEsp32ServiceProvider);
     final usb = ref.watch(usbSerialServiceProvider);
     final ble = ref.watch(bleServiceProvider);
+    final isWifiConnected = wifi.isConnected;
     final isUsbConnected = usb.isConnected;
     final isBleConnected = ble.state == BleConnectionState.connected;
 
@@ -156,7 +157,85 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            // 1. ESP32 USB-C Connection Card (Primary)
+            // 0. ESP32 Wi-Fi Connection Card (Primary)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppConstants.subtleBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(isWifiConnected ? Icons.wifi : Icons.wifi_off,
+                                color: isWifiConnected ? AppConstants.statusGreen : AppConstants.statusAmber),
+                            const SizedBox(width: 8),
+                            const Flexible(
+                              child: Text(
+                                'ESP32 Wi-Fi (Primary)',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      StatusBadge(
+                        label: isWifiConnected ? 'CONNECTED' : 'DISCONNECTED',
+                        color: isWifiConnected ? AppConstants.statusGreen : AppConstants.statusGrey,
+                        isSmall: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isWifiConnected
+                        ? 'Connected to ESP32 SoC at http://${wifi.espIp}:${wifi.port}\nReal-time HTTP polling & REST command stream active.'
+                        : 'Connect via Wi-Fi to the ESP32 SoftAP hotspot (SSID: OnionGuard-WiFi) or local farm network.',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.wifi, size: 16),
+                        label: const Text('Configure & Connect Wi-Fi'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppConstants.primaryForest,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => showWifiConnectionModal(context, ref),
+                      ),
+                      if (isWifiConnected)
+                        OutlinedButton(
+                          onPressed: () {
+                            wifi.disconnect();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('ESP32 Wi-Fi disconnected.')),
+                              );
+                            }
+                          },
+                          child: const Text('Disconnect'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 1. ESP32 USB-C Connection Card (Secondary)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

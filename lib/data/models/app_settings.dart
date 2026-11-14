@@ -38,6 +38,10 @@ class AppSettings {
   final bool inboundApiEnabled;
   final int inboundApiPort;
 
+  // ESP32 Wi-Fi Hardware Connection
+  final String espWifiIp;
+  final int espWifiPort;
+
   // Backward compatibility getters
   bool get smsEnabled => whatsappEnabled;
   String get smsProvider => whatsappProvider;
@@ -77,6 +81,8 @@ class AppSettings {
     this.alertCooldownMinutes = 15,
     this.inboundApiEnabled = true,
     this.inboundApiPort = 8088,
+    this.espWifiIp = '192.168.4.1',
+    this.espWifiPort = 80,
     this.backendMode = 'LOCAL_OFFLINE',
     this.supabaseUrl = '',
     this.supabaseAnonKey = '',
@@ -110,6 +116,8 @@ class AppSettings {
     int? alertCooldownMinutes,
     bool? inboundApiEnabled,
     int? inboundApiPort,
+    String? espWifiIp,
+    int? espWifiPort,
     // Deprecated compatibility parameters
     bool? smsEnabled,
     String? smsProvider,
@@ -147,6 +155,8 @@ class AppSettings {
       alertCooldownMinutes: alertCooldownMinutes ?? this.alertCooldownMinutes,
       inboundApiEnabled: inboundApiEnabled ?? this.inboundApiEnabled,
       inboundApiPort: inboundApiPort ?? this.inboundApiPort,
+      espWifiIp: espWifiIp ?? this.espWifiIp,
+      espWifiPort: espWifiPort ?? this.espWifiPort,
       backendMode: backendMode ?? this.backendMode,
       supabaseUrl: supabaseUrl ?? this.supabaseUrl,
       supabaseAnonKey: supabaseAnonKey ?? this.supabaseAnonKey,
@@ -181,6 +191,8 @@ class AppSettings {
     'alertCooldownMinutes': alertCooldownMinutes,
     'inboundApiEnabled': inboundApiEnabled,
     'inboundApiPort': inboundApiPort,
+    'espWifiIp': espWifiIp,
+    'espWifiPort': espWifiPort,
     // Deprecated keys for compatibility
     'smsEnabled': whatsappEnabled,
     'smsProvider': whatsappProvider,
@@ -221,6 +233,8 @@ class AppSettings {
     alertCooldownMinutes: json['alertCooldownMinutes'] as int? ?? 15,
     inboundApiEnabled: json['inboundApiEnabled'] as bool? ?? true,
     inboundApiPort: json['inboundApiPort'] as int? ?? 8088,
+    espWifiIp: json['espWifiIp'] as String? ?? '192.168.4.1',
+    espWifiPort: json['espWifiPort'] as int? ?? 80,
     backendMode: json['backendMode'] as String? ?? 'LOCAL_OFFLINE',
     supabaseUrl: json['supabaseUrl'] as String? ?? '',
     supabaseAnonKey: json['supabaseAnonKey'] as String? ?? '',
