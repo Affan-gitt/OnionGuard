@@ -1,29 +1,12 @@
 /**
- * ============================================================================
- * ONIONGUARD - ESP32-H2 DevKit 4 FIRMWARE (STANDALONE ALL-IN-ONE SKETCH)
- * Smart Onion Storage, Monitoring and Environmental Management System
- * ============================================================================
- * Microcontroller: ESP32-H2-WROOM-1 (32-bit RISC-V @ 96MHz)
- * Primary Interface: USB-C CDC-ACM Serial (115200 Baud, Newline-Delimited JSON)
- * Secondary Interface: Bluetooth Low Energy 5.0 (BLE) GATT Architecture
- * Sensors: DHT11 (Temp/Humidity), MQ-3 (Alcohol Vapour Decomposition Proxy)
- * Actuators: 12V Exhaust Fan (Relay 1), Demonstration Actuator (GPIO 9)
- * Display: I2C LCD 1602 (PCF8574 Backpack @ 0x27)
- * ============================================================================
- * 
- * REQUIRED ARDUINO LIBRARIES:
- * 1. "DHT sensor library" by Adafruit
- * 2. "Adafruit Unified Sensor" by Adafruit
- * 3. "LiquidCrystal_I2C" by Frank de Brabander (or Marco Schwartz)
- * 4. "ArduinoJson" by Benoit Blanchon (supports v6 and v7)
- * 
- * ARDUINO IDE BOARD CONFIGURATION:
+ * ONIONGUARD - ESP32-H2 DevKit 4
+ * Firmware Version 1.2.0 (Full Standalone Production)
+ *
+ * Board Settings in Arduino IDE:
  * - Board: "ESP32H2 Dev Module"
- * - CPU Frequency: 96MHz
- * - Flash Size: 4MB
- * - Partition Scheme: Default 4MB with spiffs
- * - USB CDC On Boot: Enabled (Important: enables USB CDC-ACM serial on USB-C!)
- * ============================================================================
+ * - USB CDC On Boot: "Enabled" (CRITICAL for Type-C communication)
+ * - Flash Frequency: 64MHz
+ * - Upload Speed: 921600
  */
 
 #include <Arduino.h>
@@ -37,54 +20,50 @@
 #include <BLE2902.h>
 
 #define FIRMWARE_VERSION "1.2.0"
-#define DEVICE_ID        "ONIONGUARD_ESP32H2"
+#define DEVICE_ID "ONIONGUARD_ESP32H2"
 
-// ============================================================================
-// 1. PIN DEFINITIONS (ESP32-H2 DevKit 4)
-// ============================================================================
-#define PIN_MQ3_ANALOG          1   // ADC1_CH1 (Connect via 10k/20k voltage divider)
-#define PIN_DHT11_DATA          2   // Digital 1-Wire Data bus with 10k pull-up to 3.3V
-#define PIN_I2C_SDA             4   // I2C SDA for LCD display
-#define PIN_I2C_SCL             5   // I2C SCL for LCD display
-#define PIN_RELAY_FAN           8   // Relay control for exhaust fan (Active LOW)
-#define PIN_ACTUATOR_HUM        9   // Demonstration actuator driver (Humidifier proxy)
-#define PIN_STATUS_LED          10  // Onboard system heartbeat LED
+// ==================== PIN DEFINITIONS ====================
+#define PIN_MQ3_ANALOG 1
+#define PIN_DHT11_DATA 2
+#define PIN_I2C_SDA 4
+#define PIN_I2C_SCL 5
+#define PIN_ARDUINO_FAN_SIGNAL 22
+#define PIN_ACTUATOR_HUM 10
+#define PIN_BUZZER 11
 
-// Actuator Active Logic Levels
-#define RELAY_ACTIVE_LEVEL      LOW   // Standard opto-isolated relay modules are active LOW
-#define RELAY_INACTIVE_LEVEL    HIGH
-#define HUM_ACTIVE_LEVEL        HIGH
-#define HUM_INACTIVE_LEVEL      LOW
+#define HUM_ACTIVE_LEVEL HIGH
+#define HUM_INACTIVE_LEVEL LOW
 
-// ============================================================================
-// 2. BLE & TIMING CONFIGURATION
-// ============================================================================
-#define BLE_DEVICE_NAME             "OnionGuard-ESP32H2"
-#define SERVICE_UUID                "0000A001-0000-1000-8000-00805F9B34FB"
-#define CHAR_SENSOR_DATA_UUID       "0000A002-0000-1000-8000-00805F9B34FB"
-#define CHAR_DEVICE_STATUS_UUID     "0000A003-0000-1000-8000-00805F9B34FB"
-#define CHAR_ACTUATOR_COMMAND_UUID  "0000A004-0000-1000-8000-00805F9B34FB"
-#define CHAR_CONFIG_UUID            "0000A005-0000-1000-8000-00805F9B34FB"
-#define CHAR_EVENT_NOTIFY_UUID      "0000A006-0000-1000-8000-00805F9B34FB"
+// ==================== BLE CONFIGURATION ====================
+#define ENABLE_BLE 1
+#define BLE_DEVICE_NAME "OnionGuard-ESP32H2"
 
-#define DEFAULT_TRIGGER_TEMP        26.0f // Fan turns ON at or above 26.0°C
-#define DEFAULT_RESET_TEMP          24.0f // Fan turns OFF at or below 24.0°C (2.0°C hysteresis)
-#define DEFAULT_MAX_HUMIDITY_SAFETY 75.0f // Humidifier safety interlock limit (Max 75% RH)
-#define DEFAULT_MQ3_BASELINE        850   // Ambient raw ADC baseline
-#define DEFAULT_MQ3_TRIGGER_DELTA   25.0f // +25% above baseline triggers demonstration actuator
+#define SERVICE_UUID "0000A001-0000-1000-8000-00805F9B34FB"
+#define CHAR_SENSOR_DATA_UUID "0000A002-0000-1000-8000-00805F9B34FB"
+#define CHAR_DEVICE_STATUS_UUID "0000A003-0000-1000-8000-00805F9B34FB"
+#define CHAR_ACTUATOR_COMMAND_UUID "0000A004-0000-1000-8000-00805F9B34FB"
+#define CHAR_CONFIG_UUID "0000A005-0000-1000-8000-00805F9B34FB"
+#define CHAR_EVENT_NOTIFY_UUID "0000A006-0000-1000-8000-00805F9B34FB"
 
-#define SENSOR_READ_INTERVAL_MS     2000  // Acquire DHT11 & MQ-3 every 2 seconds
-#define LCD_CYCLE_INTERVAL_MS       4000  // Rotate LCD screens every 4 seconds
-#define MIN_FAN_CYCLE_TIME_MS       15000 // Anti-chattering: minimum 15s before toggling relay again
-#define MAX_CONSECUTIVE_ERRORS      3     // Enter failsafe mode after 3 consecutive sensor read failures
+// ==================== DEFAULT THRESHOLDS ====================
+#define DEFAULT_TRIGGER_TEMP 35.0f
+#define DEFAULT_RESET_TEMP 32.0f
+#define DEFAULT_MAX_HUMIDITY_SAFETY 75.0f
+#define DEFAULT_MQ3_BASELINE 850
+#define DEFAULT_MQ3_TRIGGER_DELTA 25.0f
 
-#define LCD_I2C_ADDRESS             0x27  // Change to 0x3F if your PCF8574 backpack is addressed 0x3F
-#define LCD_COLUMNS                 16
-#define LCD_ROWS                    2
+#define DHT_READ_INTERVAL_MS 2000
+#define MQ3_READ_INTERVAL_MS 700
+#define LCD_UPDATE_INTERVAL_MS 700
+#define TELEMETRY_INTERVAL_MS 1000
+#define LCD_CYCLE_INTERVAL_MS 4000
+#define MAX_CONSECUTIVE_ERRORS 3
 
-// ============================================================================
-// 3. LCD DISPLAY DRIVER
-// ============================================================================
+#define LCD_I2C_ADDRESS 0x27
+#define LCD_COLUMNS 16
+#define LCD_ROWS 2
+
+// ==================== LCD DISPLAY CLASS ====================
 class LcdDisplay {
 private:
   LiquidCrystal_I2C _lcd;
@@ -93,10 +72,16 @@ private:
   int _currentScreen;
 
 public:
-  LcdDisplay() : _lcd(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS), _isAvailable(false), _lastCycleTime(0), _currentScreen(0) {}
+  LcdDisplay()
+    : _lcd(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS),
+      _isAvailable(false),
+      _lastCycleTime(0),
+      _currentScreen(0) {}
 
   void begin() {
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+    Wire.setTimeOut(100); // 100ms timeout prevents freezing if LCD is missing or wiring loose
+
     Wire.beginTransmission(LCD_I2C_ADDRESS);
     byte error = Wire.endTransmission();
 
@@ -105,18 +90,20 @@ public:
       _lcd.init();
       _lcd.backlight();
       _lcd.clear();
+
       _lcd.setCursor(0, 0);
       _lcd.print("  ONIONGUARD  ");
       _lcd.setCursor(0, 1);
-      _lcd.print("USB CDC + SENS");
-      delay(1200);
+      _lcd.print(" ESP32-H2 ONLINE");
+      delay(800);
       _lcd.clear();
     } else {
       _isAvailable = false;
+      Serial.println("[WARN] LCD 1602 not detected on I2C bus (0x27)");
     }
   }
 
-  void update(float temp, float humidity, int mq3Adc, bool fanOn, bool humOn, bool bleConnected, bool sensorError, bool usbActive = false) {
+  void update(float temp, float humidity, int mq3Adc, bool fanOn, bool humOn, bool sensorError, float highTempThreshold) {
     if (!_isAvailable) return;
 
     if (sensorError) {
@@ -124,7 +111,7 @@ public:
       return;
     }
 
-    if (fanOn && temp >= DEFAULT_TRIGGER_TEMP) {
+    if (fanOn && temp >= highTempThreshold) {
       displayHighTemp(temp);
       return;
     }
@@ -149,18 +136,18 @@ public:
       _lcd.print("%  ");
 
       _lcd.setCursor(0, 1);
-      _lcd.print("F:");
-      _lcd.print(fanOn ? "ON " : "-- ");
-      _lcd.print("USB:");
-      _lcd.print(usbActive ? "OK " : "-- ");
-      _lcd.print(bleConnected ? "BLE" : "   ");
+      _lcd.print("FAN:");
+      _lcd.print(fanOn ? "ON " : "OFF");
+      _lcd.print(" HUM:");
+      _lcd.print(humOn ? "ON " : "OFF");
     } else {
       _lcd.setCursor(0, 0);
-      _lcd.print("STORAGE NORMAL ");
-      _lcd.setCursor(0, 1);
       _lcd.print("MQ-3 ADC: ");
       _lcd.print(mq3Adc);
-      _lcd.print("   ");
+      _lcd.print("    ");
+
+      _lcd.setCursor(0, 1);
+      _lcd.print("BLE: ON | USB: OK");
     }
   }
 
@@ -196,9 +183,7 @@ public:
   }
 };
 
-// ============================================================================
-// 4. BLE SERVER & COMMUNICATION MANAGER
-// ============================================================================
+// ==================== BLE COMMUNICATION ====================
 class CommandHandler {
 public:
   virtual void onCommandReceived(const String& cmd) = 0;
@@ -209,9 +194,13 @@ private:
   bool& _deviceConnected;
 public:
   ServerCallbacks(bool& connected) : _deviceConnected(connected) {}
-  void onConnect(BLEServer* pServer) override { _deviceConnected = true; }
+  void onConnect(BLEServer* pServer) override {
+    _deviceConnected = true;
+    Serial.println("[BLE] Client phone connected");
+  }
   void onDisconnect(BLEServer* pServer) override {
     _deviceConnected = false;
+    Serial.println("[BLE] Client disconnected, restarting advertising...");
     pServer->startAdvertising();
   }
 };
@@ -243,37 +232,44 @@ private:
 
 public:
   BleServerManager(CommandHandler* handler)
-      : _pServer(nullptr), _pService(nullptr), _pSensorDataChar(nullptr),
-        _pStatusChar(nullptr), _pCommandChar(nullptr), _pConfigChar(nullptr),
-        _pEventChar(nullptr), _deviceConnected(false), _commandHandler(handler) {}
+    : _pServer(nullptr),
+      _pService(nullptr),
+      _pSensorDataChar(nullptr),
+      _pStatusChar(nullptr),
+      _pCommandChar(nullptr),
+      _pConfigChar(nullptr),
+      _pEventChar(nullptr),
+      _deviceConnected(false),
+      _commandHandler(handler) {}
 
   void begin() {
     BLEDevice::init(BLE_DEVICE_NAME);
     _pServer = BLEDevice::createServer();
     _pServer->setCallbacks(new ServerCallbacks(_deviceConnected));
+
     _pService = _pServer->createService(SERVICE_UUID);
 
     _pSensorDataChar = _pService->createCharacteristic(
-        CHAR_SENSOR_DATA_UUID,
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+      CHAR_SENSOR_DATA_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
     );
     _pSensorDataChar->addDescriptor(new BLE2902());
 
     _pStatusChar = _pService->createCharacteristic(
-        CHAR_DEVICE_STATUS_UUID,
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+      CHAR_DEVICE_STATUS_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
     );
     _pStatusChar->addDescriptor(new BLE2902());
 
     _pCommandChar = _pService->createCharacteristic(
-        CHAR_ACTUATOR_COMMAND_UUID,
-        BLECharacteristic::PROPERTY_WRITE
+      CHAR_ACTUATOR_COMMAND_UUID,
+      BLECharacteristic::PROPERTY_WRITE
     );
     _pCommandChar->setCallbacks(new CommandCallbacks(_commandHandler));
 
     _pEventChar = _pService->createCharacteristic(
-        CHAR_EVENT_NOTIFY_UUID,
-        BLECharacteristic::PROPERTY_NOTIFY
+      CHAR_EVENT_NOTIFY_UUID,
+      BLECharacteristic::PROPERTY_NOTIFY
     );
     _pEventChar->addDescriptor(new BLE2902());
 
@@ -282,10 +278,16 @@ public:
     BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06);
+    pAdvertising->setMinPreferred(0x12);
+
     BLEDevice::startAdvertising();
+    Serial.println("[BLE] Advertising started as: " BLE_DEVICE_NAME);
   }
 
-  bool isConnected() const { return _deviceConnected; }
+  bool isConnected() const {
+    return _deviceConnected;
+  }
 
   void notifySensorData(const String& jsonPayload) {
     if (_deviceConnected && _pSensorDataChar != nullptr) {
@@ -302,9 +304,7 @@ public:
   }
 };
 
-// ============================================================================
-// 5. GLOBAL STATE & FORWARD DECLARATIONS
-// ============================================================================
+// ==================== GLOBAL STATE ====================
 DHT dht(PIN_DHT11_DATA, DHT11);
 LcdDisplay lcd;
 
@@ -317,7 +317,6 @@ float mq3DeltaPercent = 0.0f;
 
 bool fanState = false;
 String fanMode = "AUTO";
-unsigned long fanLastToggledTime = 0;
 
 bool humidifierState = false;
 String humidifierMode = "AUTO";
@@ -328,16 +327,23 @@ float resetTemp = DEFAULT_RESET_TEMP;
 float maxHumiditySafety = DEFAULT_MAX_HUMIDITY_SAFETY;
 float mq3TriggerDelta = DEFAULT_MQ3_TRIGGER_DELTA;
 
-unsigned long lastSensorReadTime = 0;
+unsigned long lastDhtReadTime = 0;
+unsigned long lastMq3ReadTime = 0;
+unsigned long lastLcdUpdateTime = 0;
+unsigned long lastTelemetryTime = 0;
 unsigned long lastHeartbeatTime = 0;
 unsigned long lastUsbRxTime = 0;
 unsigned long packetSequence = 0;
+
 int consecutiveErrorCount = 0;
 bool sensorFault = false;
 bool hasValidReading = false;
 
-void readPhysicalSensors();
+// ==================== FORWARD DECLARATIONS ====================
+void readDhtSensor();
+void readMq3Sensor();
 void evaluateActuationLogic();
+void updateWarningBuzzer();
 void setFanPhysicalState(bool state, const char* reason);
 void setHumidifierPhysicalState(bool state, const char* reason);
 void executeFailsafeShutdown();
@@ -345,7 +351,6 @@ void calibrateMq3Baseline();
 void updateLcdDisplay();
 void broadcastTelemetry();
 void sendHeartbeat();
-void toggleHeartbeatLed();
 void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterface);
 
 class SystemCommandHandler : public CommandHandler {
@@ -358,50 +363,56 @@ public:
 SystemCommandHandler cmdHandler;
 BleServerManager bleManager(&cmdHandler);
 
-// ============================================================================
-// 6. SETUP & MAIN LOOP
-// ============================================================================
+// ==================== SETUP ====================
 void setup() {
   Serial.begin(115200);
-  delay(1200);
+  delay(500);
 
-  pinMode(PIN_RELAY_FAN, OUTPUT);
-  digitalWrite(PIN_RELAY_FAN, RELAY_INACTIVE_LEVEL);
+  Serial.println();
+  Serial.println("========================================");
+  Serial.println("   ONIONGUARD - ESP32-H2 DevKit 4       ");
+  Serial.println("   Firmware: " FIRMWARE_VERSION);
+  Serial.println("========================================");
+  Serial.println("[BOOT] USB Serial ready");
+
+  pinMode(PIN_BUZZER, OUTPUT);
+  digitalWrite(PIN_BUZZER, LOW);
+
+  pinMode(PIN_ARDUINO_FAN_SIGNAL, OUTPUT);
+  digitalWrite(PIN_ARDUINO_FAN_SIGNAL, LOW);
+  Serial.println("[BOOT] Fan relay pin 22 initialized (OFF)");
 
   pinMode(PIN_ACTUATOR_HUM, OUTPUT);
   digitalWrite(PIN_ACTUATOR_HUM, HUM_INACTIVE_LEVEL);
-
-  pinMode(PIN_STATUS_LED, OUTPUT);
-  digitalWrite(PIN_STATUS_LED, LOW);
+  Serial.println("[BOOT] Humidifier pin 10 initialized (OFF)");
 
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
+  Serial.println("[BOOT] 12-bit ADC configured");
 
   dht.begin();
+  Serial.println("[BOOT] DHT11 bus initialized on GPIO 2");
+
   lcd.begin();
+
+#if ENABLE_BLE
+  Serial.println("[BOOT] Initializing Bluetooth Low Energy 5.0...");
   bleManager.begin();
+#endif
+
   calibrateMq3Baseline();
+  Serial.print("[BOOT] Calibrated MQ-3 Baseline ADC: ");
+  Serial.println(mq3BaselineAdc);
 
-  #if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
-  JsonDocument bootDoc;
-  #else
-  StaticJsonDocument<256> bootDoc;
-  #endif
-  bootDoc["type"] = "boot";
-  bootDoc["device_id"] = DEVICE_ID;
-  bootDoc["fw"] = FIRMWARE_VERSION;
-  bootDoc["status"] = "READY";
-  bootDoc["protocol"] = "NDJSON";
-
-  String bootMsg;
-  serializeJson(bootDoc, bootMsg);
-  Serial.println(bootMsg);
+  Serial.println("ONIONGUARD READY");
+  Serial.println("[INFO] Auto Ventilation: ON >= 35 C, OFF <= 32 C");
 }
 
+// ==================== MAIN LOOP ====================
 void loop() {
   unsigned long now = millis();
 
-  // 1. Process USB CDC Serial incoming JSON
+  // 1. Process USB CDC Serial Commands
   while (Serial.available() > 0) {
     String inputLine = Serial.readStringUntil('\n');
     inputLine.trim();
@@ -411,27 +422,43 @@ void loop() {
     }
   }
 
-  // 2. Periodic Sensor Telemetry Acquisition (every 2s)
-  if (now - lastSensorReadTime >= SENSOR_READ_INTERVAL_MS) {
-    lastSensorReadTime = now;
-    readPhysicalSensors();
-    evaluateActuationLogic();
-    updateLcdDisplay();
-    broadcastTelemetry();
-    toggleHeartbeatLed();
+  // 2. Sample DHT11 Temperature & Humidity
+  if (now - lastDhtReadTime >= DHT_READ_INTERVAL_MS) {
+    lastDhtReadTime = now;
+    readDhtSensor();
   }
 
-  // 3. Periodic Heartbeat (every 5s)
+  // 3. Sample MQ-3 Gas Sensor
+  if (now - lastMq3ReadTime >= MQ3_READ_INTERVAL_MS) {
+    lastMq3ReadTime = now;
+    readMq3Sensor();
+  }
+
+  // 4. Actuation Decision Engine
+  evaluateActuationLogic();
+  updateWarningBuzzer();
+
+  // 5. Update Local I2C LCD Display
+  if (now - lastLcdUpdateTime >= LCD_UPDATE_INTERVAL_MS) {
+    lastLcdUpdateTime = now;
+    updateLcdDisplay();
+  }
+
+  // 6. Broadcast Real-time Telemetry (USB + BLE)
+  if (now - lastTelemetryTime >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetryTime = now;
+    broadcastTelemetry();
+  }
+
+  // 7. Periodic Connection Heartbeat
   if (now - lastHeartbeatTime >= 5000) {
     lastHeartbeatTime = now;
     sendHeartbeat();
   }
 }
 
-// ============================================================================
-// 7. SENSOR SAMPLING & FILTERING
-// ============================================================================
-void readPhysicalSensors() {
+// ==================== SENSOR SAMPLING ====================
+void readDhtSensor() {
   float h = dht.readHumidity();
   float t = dht.readTemperature();
 
@@ -450,12 +477,15 @@ void readPhysicalSensors() {
   hasValidReading = true;
   currentTemperature = t;
   currentHumidity = h;
+}
 
+void readMq3Sensor() {
   long adcSum = 0;
   for (int i = 0; i < 5; i++) {
     adcSum += analogRead(PIN_MQ3_ANALOG);
     delay(2);
   }
+
   mq3RawAdc = adcSum / 5;
   mq3SmoothedAdc = (0.2f * (float)mq3RawAdc) + (0.8f * mq3SmoothedAdc);
 
@@ -466,19 +496,16 @@ void readPhysicalSensors() {
   }
 }
 
+// ==================== ACTUATION DECISION LOGIC ====================
 void evaluateActuationLogic() {
   if (sensorFault || !hasValidReading) return;
 
-  unsigned long now = millis();
-
-  // Fan Hysteresis
+  // Thermal Automatic Exhaust Control with Hysteresis
   if (fanMode == "AUTO") {
-    if (now - fanLastToggledTime >= MIN_FAN_CYCLE_TIME_MS) {
-      if (!fanState && currentTemperature >= triggerTemp) {
-        setFanPhysicalState(true, "AUTO_TEMP_TRIGGER");
-      } else if (fanState && currentTemperature <= resetTemp) {
-        setFanPhysicalState(false, "AUTO_TEMP_RESET");
-      }
+    if (fanState && currentTemperature <= resetTemp) {
+      setFanPhysicalState(false, "AUTO_TEMP_RESET");
+    } else if (!fanState && currentTemperature >= triggerTemp) {
+      setFanPhysicalState(true, "AUTO_TEMP_TRIGGER");
     }
   }
 
@@ -504,15 +531,23 @@ void evaluateActuationLogic() {
   }
 }
 
+// ==================== PHYSICAL RELAYS & ACTUATORS ====================
 void setFanPhysicalState(bool state, const char* reason) {
   fanState = state;
-  fanLastToggledTime = millis();
-  digitalWrite(PIN_RELAY_FAN, fanState ? RELAY_ACTIVE_LEVEL : RELAY_INACTIVE_LEVEL);
+  digitalWrite(PIN_ARDUINO_FAN_SIGNAL, state ? HIGH : LOW);
+  Serial.print("[FAN] ");
+  Serial.print(state ? "ON" : "OFF");
+  Serial.print(" | Reason: ");
+  Serial.println(reason);
 }
 
 void setHumidifierPhysicalState(bool state, const char* reason) {
   humidifierState = state;
   digitalWrite(PIN_ACTUATOR_HUM, humidifierState ? HUM_ACTIVE_LEVEL : HUM_INACTIVE_LEVEL);
+  Serial.print("[HUMIDIFIER] ");
+  Serial.print(humidifierState ? "ON" : "OFF");
+  Serial.print(" | Reason: ");
+  Serial.println(reason);
 }
 
 void executeFailsafeShutdown() {
@@ -532,27 +567,26 @@ void calibrateMq3Baseline() {
 }
 
 void updateLcdDisplay() {
-  bool usbActive = (millis() - lastUsbRxTime < 10000) && (lastUsbRxTime > 0);
   lcd.update(
     currentTemperature,
     currentHumidity,
     mq3RawAdc,
     fanState,
     humidifierState,
-    bleManager.isConnected(),
     sensorFault,
-    usbActive
+    triggerTemp
   );
 }
 
+// ==================== TELEMETRY BROADCAST ====================
 void broadcastTelemetry() {
   packetSequence++;
 
-  #if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
   JsonDocument doc;
-  #else
+#else
   StaticJsonDocument<384> doc;
-  #endif
+#endif
 
   doc["type"] = "sensor";
   doc["dev"] = DEVICE_ID;
@@ -582,19 +616,21 @@ void broadcastTelemetry() {
 
   String payload;
   serializeJson(doc, payload);
-
   Serial.println(payload);
+
+#if ENABLE_BLE
   bleManager.notifySensorData(payload);
+#endif
 }
 
 void sendHeartbeat() {
   packetSequence++;
 
-  #if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
   JsonDocument doc;
-  #else
+#else
   StaticJsonDocument<256> doc;
-  #endif
+#endif
 
   doc["type"] = "heartbeat";
   doc["dev"] = DEVICE_ID;
@@ -610,18 +646,34 @@ void sendHeartbeat() {
   Serial.println(payload);
 }
 
-void toggleHeartbeatLed() {
-  static bool ledState = false;
-  ledState = !ledState;
-  digitalWrite(PIN_STATUS_LED, ledState ? HIGH : LOW);
+void updateWarningBuzzer() {
+  static unsigned long lastBeepTime = 0;
+  static bool buzzerOn = false;
+
+  bool tempWarning = hasValidReading && !sensorFault && (currentTemperature >= triggerTemp);
+  bool gasWarning = (mq3DeltaPercent >= mq3TriggerDelta);
+  bool warning = tempWarning || gasWarning;
+
+  if (!warning) {
+    digitalWrite(PIN_BUZZER, LOW);
+    buzzerOn = false;
+    return;
+  }
+
+  if (millis() - lastBeepTime >= (buzzerOn ? 150 : 850)) {
+    buzzerOn = !buzzerOn;
+    lastBeepTime = millis();
+    digitalWrite(PIN_BUZZER, buzzerOn ? HIGH : LOW);
+  }
 }
 
+// ==================== INCOMING JSON COMMANDS ====================
 void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterface) {
-  #if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
   JsonDocument cmdDoc;
-  #else
+#else
   StaticJsonDocument<384> cmdDoc;
-  #endif
+#endif
 
   DeserializationError err = deserializeJson(cmdDoc, jsonStr);
   if (err) {
@@ -632,11 +684,12 @@ void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterfa
   long cmdSeq = cmdDoc["seq"] | 0;
   const char* type = cmdDoc["type"] | "";
 
-  #if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
   JsonDocument ackDoc;
-  #else
+#else
   StaticJsonDocument<256> ackDoc;
-  #endif
+#endif
+
   ackDoc["type"] = "ack";
   ackDoc["seq"] = cmdSeq;
   ackDoc["source"] = sourceInterface;
@@ -649,7 +702,6 @@ void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterfa
       if (strcmp(device, "fan") == 0) {
         fanMode = "MANUAL";
         setFanPhysicalState(reqState, "MANUAL_COMMAND");
-        
         ackDoc["device"] = "fan";
         ackDoc["state"] = reqState;
         ackDoc["actual_state"] = fanState;
@@ -664,7 +716,6 @@ void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterfa
         } else {
           humidifierMode = "MANUAL";
           setHumidifierPhysicalState(reqState, "MANUAL_COMMAND");
-
           ackDoc["device"] = "humidifier";
           ackDoc["state"] = reqState;
           ackDoc["actual_state"] = humidifierState;
@@ -704,7 +755,9 @@ void processIncomingJsonCommand(const String& jsonStr, const char* sourceInterfa
   serializeJson(ackDoc, ackResponse);
   Serial.println(ackResponse);
 
+#if ENABLE_BLE
   if (bleManager.isConnected()) {
     bleManager.notifyEvent(ackResponse);
   }
+#endif
 }
