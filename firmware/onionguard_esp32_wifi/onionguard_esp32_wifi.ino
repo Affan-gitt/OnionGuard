@@ -2,32 +2,37 @@
  * ============================================================================
  * ONIONGUARD - ESP32 Wi-Fi + BT SoC Firmware
  * Firmware Version: 2.0.0 (Wi-Fi REST Edition)
- * Target Hardware : ESP32 Dev Module / ESP32-WROOM-32 / ESP32-S3
+ * Target Board    : "ESP32 Dev Module" (ESP32-WROOM-32 / DevKit V1 / ESP32-S3)
  * ============================================================================
+ * 
+ * LIBRARIES REQUIRED (Install via Arduino IDE Library Manager):
+ * 1. "DHT sensor library" by Adafruit
+ * 2. "LiquidCrystal I2C" by Frank de Brabander or Marco Schwartz
+ * 3. "ArduinoJson" by Benoit Blanchon (Supports both v6 and v7 automatically)
  * 
  * HARDWARE CONNECTIONS:
  * ----------------------------------------------------------------------------
- *  1. MQ-3 Gas Sensor (Alcohol / Onion Spoilage Vapour Proxy):
- *     - VCC -> 5V
- *     - GND -> GND
- *     - A0  -> GPIO 34 (ADC1 - Safe with Wi-Fi active; DO NOT use ADC2 pins!)
+ * 1. MQ-3 Gas Sensor (Volatile Spoilage Gas / Alcohol Proxy):
+ *    - VCC  -> 5V (or VIN)
+ *    - GND  -> GND
+ *    - A0   -> GPIO 34 (ADC1_CH6 - MUST use ADC1; ADC2 is disabled during Wi-Fi!)
  * 
- *  2. DHT11 Temperature & Humidity Sensor:
- *     - VCC -> 3.3V or 5V
- *     - GND -> GND
- *     - DATA -> GPIO 4 (10k pull-up resistor to VCC recommended)
+ * 2. DHT11 Temperature & Humidity Sensor:
+ *    - VCC  -> 3.3V or 5V
+ *    - GND  -> GND
+ *    - DATA -> GPIO 4 (10k pull-up resistor to VCC recommended)
  * 
- *  3. 16x2 I2C LCD Display (PCF8574):
- *     - VCC -> 5V
- *     - GND -> GND
- *     - SDA -> GPIO 21
- *     - SCL -> GPIO 22
+ * 3. 16x2 I2C LCD Display (PCF8574):
+ *    - VCC  -> 5V
+ *    - GND  -> GND
+ *    - SDA  -> GPIO 21
+ *    - SCL  -> GPIO 22
  * 
- *  4. Actuators & Relays:
- *     - Exhaust Ventilation Fan Relay -> GPIO 18
- *     - Gas Neutralization / Humidifier Relay -> GPIO 19
- *     - Piezo Warning Buzzer -> GPIO 15
- *     - Status LED -> GPIO 2 (Built-in Blue LED on DevKit)
+ * 4. Relays & Actuators:
+ *    - Exhaust Ventilation Fan Relay -> GPIO 18
+ *    - Humidifier / Demonstration Relay -> GPIO 19
+ *    - Warning Piezo Buzzer -> GPIO 15
+ *    - Onboard Status LED -> GPIO 2 (DevKit Blue LED)
  * ----------------------------------------------------------------------------
  */
 
@@ -45,12 +50,12 @@
 // ============================================================================
 // PIN DEFINITIONS (Optimized for ESP32 Wi-Fi SoC)
 // ============================================================================
-#define PIN_MQ3_ANALOG        34   // ADC1_CH6 (Safe with Wi-Fi, input only)
+#define PIN_MQ3_ANALOG        34   // ADC1_CH6 (Safe with Wi-Fi, input-only pin)
 #define PIN_DHT11_DATA        4    // DHT11 Sensor Data
 #define PIN_I2C_SDA           21   // Default I2C SDA
 #define PIN_I2C_SCL           22   // Default I2C SCL
 #define PIN_RELAY_FAN         18   // Exhaust Fan Relay
-#define PIN_RELAY_HUM         19   // Humidifier / Demonstration Relay
+#define PIN_RELAY_HUM         19   // Humidifier / Gas Demonstration Relay
 #define PIN_BUZZER            15   // Piezo Warning Buzzer
 #define PIN_STATUS_LED        2    // Onboard Blue Status LED
 
@@ -209,6 +214,28 @@ void evaluateAutomatedLogic() {
   }
 }
 
+void updateWarningBuzzer() {
+  static unsigned long lastBeepTime = 0;
+  static bool buzzerState = false;
+
+  bool tempWarning = !sensorFault && (currentTemperature >= DEFAULT_TRIGGER_TEMP);
+  bool gasWarning = (mq3DeltaPercent >= DEFAULT_MQ3_TRIGGER_DELTA);
+  bool warning = tempWarning || gasWarning;
+
+  if (!warning) {
+    digitalWrite(PIN_BUZZER, LOW);
+    buzzerState = false;
+    return;
+  }
+
+  unsigned long interval = gasWarning ? 150 : 350;
+  if (millis() - lastBeepTime >= interval) {
+    lastBeepTime = millis();
+    buzzerState = !buzzerState;
+    digitalWrite(PIN_BUZZER, buzzerState ? HIGH : LOW);
+  }
+}
+
 // ============================================================================
 // LCD DISPLAY ROTATION
 // ============================================================================
@@ -298,14 +325,19 @@ void handleOptions() {
 void handleGetSensors() {
   sendCorsHeaders();
 
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+  JsonDocument doc;
+#else
   StaticJsonDocument<512> doc;
+#endif
+
   doc["device_id"] = DEVICE_ID;
   doc["version"] = FIRMWARE_VERSION;
-  doc["temperature"] = serialized(String(currentTemperature, 2));
-  doc["humidity"] = serialized(String(currentHumidity, 2));
+  doc["temperature"] = currentTemperature;
+  doc["humidity"] = currentHumidity;
   doc["mq3_raw"] = mq3RawAdc;
   doc["mq3_baseline"] = mq3BaselineAdc;
-  doc["mq3_delta_pct"] = serialized(String(mq3DeltaPercent, 2));
+  doc["mq3_delta_pct"] = mq3DeltaPercent;
   doc["fan"] = fanState;
   doc["fan_mode"] = fanMode;
   doc["humidifier"] = humidifierState;
@@ -329,9 +361,14 @@ void handlePostCommand() {
   }
 
   String body = server.arg("plain");
-  StaticJsonDocument<256> doc;
-  DeserializationError err = deserializeJson(doc, body);
 
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+  JsonDocument doc;
+#else
+  StaticJsonDocument<256> doc;
+#endif
+
+  DeserializationError err = deserializeJson(doc, body);
   if (err) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
     return;
@@ -341,7 +378,12 @@ void handlePostCommand() {
   bool targetState = doc["state"] | false;
   String mode = doc["mode"] | "MANUAL";
 
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+  JsonDocument response;
+#else
   StaticJsonDocument<256> response;
+#endif
+
   response["device"] = device;
   response["requested_state"] = targetState;
 
@@ -387,7 +429,12 @@ void handlePostCommand() {
 void handleGetStatus() {
   sendCorsHeaders();
 
+#if defined(ARDUINOJSON_VERSION_MAJOR) && (ARDUINOJSON_VERSION_MAJOR >= 7)
+  JsonDocument doc;
+#else
   StaticJsonDocument<384> doc;
+#endif
+
   doc["device_id"] = DEVICE_ID;
   doc["firmware"] = FIRMWARE_VERSION;
   doc["ap_ip"] = WiFi.softAPIP().toString();
@@ -401,7 +448,7 @@ void handleGetStatus() {
   server.send(200, "application/json", output);
 }
 
-// GET / (Visual Web Dashboard for any Browser)
+// GET / (Visual Web Control Panel for any Browser)
 void handleRoot() {
   sendCorsHeaders();
 
@@ -492,7 +539,7 @@ void setup() {
     Serial.println(AP_SSID);
     Serial.print("[WIFI] Password: ");
     Serial.println(AP_PASS);
-    Serial.print("[WIFI] IP Address: ");
+    Serial.print("[WIFI] Access Point IP: ");
     Serial.println(WiFi.softAPIP());
   } else {
     Serial.println("[WIFI] Error: Failed to start SoftAP!");
@@ -528,19 +575,11 @@ void setup() {
 // MAIN LOOP
 // ============================================================================
 void loop() {
-  // Handle incoming HTTP requests
   server.handleClient();
-
-  // Read Sensors
   readDhtSensor();
   readMq3Sensor();
-
-  // Evaluate Automation & Interlocks
   evaluateAutomatedLogic();
-
-  // Update I2C LCD Display
+  updateWarningBuzzer();
   updateLcd();
-
-  // Status LED heartbeat
   digitalWrite(PIN_STATUS_LED, (millis() % 1000) < 100 ? HIGH : LOW);
 }
