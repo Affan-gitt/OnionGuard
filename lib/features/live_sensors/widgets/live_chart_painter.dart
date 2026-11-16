@@ -22,13 +22,17 @@ class LiveChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFFFAFAFA);
-    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)), bgPaint);
+    // 1. Dark translucent card background
+    final bgPaint = Paint()..color = AppConstants.darkCardSurface.withValues(alpha: 0.5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(10)),
+      bgPaint,
+    );
 
-    // Grid lines
+    // 2. Subtle tech grid lines
     final gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
-      ..strokeWidth = 1.0;
+      ..color = AppConstants.borderEmerald.withValues(alpha: 0.15)
+      ..strokeWidth = 0.8;
 
     for (int i = 1; i <= 3; i++) {
       final y = size.height * (i / 4);
@@ -39,16 +43,16 @@ class LiveChartPainter extends CustomPainter {
 
     final range = (maxY - minY) > 0 ? (maxY - minY) : 1.0;
 
-    // Threshold line if specified
+    // 3. Threshold marker reference line
     if (thresholdLine != null && thresholdLine! >= minY && thresholdLine! <= maxY) {
       final tY = size.height - ((thresholdLine! - minY) / range) * size.height;
       final tPaint = Paint()
-        ..color = thresholdColor ?? AppConstants.statusAmber
+        ..color = thresholdColor ?? AppConstants.warmGold
         ..strokeWidth = 1.2
         ..style = PaintingStyle.stroke;
 
-      // Dashed line
-      const double dashWidth = 5, dashSpace = 4;
+      // Dashed reference line
+      const double dashWidth = 6, dashSpace = 4;
       double startX = 0;
       while (startX < size.width) {
         canvas.drawLine(Offset(startX, tY), Offset(startX + dashWidth, tY), tPaint);
@@ -56,7 +60,7 @@ class LiveChartPainter extends CustomPainter {
       }
     }
 
-    // Line Path
+    // 4. Smooth cubic curve path
     final path = Path();
     final stepX = dataPoints.length > 1 ? size.width / (dataPoints.length - 1) : size.width;
 
@@ -68,20 +72,15 @@ class LiveChartPainter extends CustomPainter {
       if (i == 0) {
         path.moveTo(x, y);
       } else {
-        path.lineTo(x, y);
+        final prevVal = dataPoints[i - 1].clamp(minY, maxY);
+        final prevX = (i - 1) * stepX;
+        final prevY = size.height - ((prevVal - minY) / range) * size.height;
+        final midX = (prevX + x) / 2;
+        path.cubicTo(midX, prevY, midX, y, x, y);
       }
     }
 
-    // Stroke
-    final strokePaint = Paint()
-      ..color = lineColor
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(path, strokePaint);
-
-    // Gradient fill under line
+    // 5. Gradient fill underneath the glowing curve
     final fillPath = Path.from(path)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
@@ -91,21 +90,40 @@ class LiveChartPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [lineColor.withOpacity(0.25), lineColor.withOpacity(0.0)],
+        colors: [
+          lineColor.withValues(alpha: 0.30),
+          lineColor.withValues(alpha: 0.0),
+        ],
       ).createShader(Offset.zero & size);
     canvas.drawPath(fillPath, fillPaint);
 
-    // Latest point dot
+    // 6. Glowing line stroke
+    final strokePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, strokePaint);
+
+    // 7. Latest data point glowing dot
     final lastVal = dataPoints.last.clamp(minY, maxY);
     final lastX = size.width;
     final lastY = size.height - ((lastVal - minY) / range) * size.height;
 
-    final dotPaint = Paint()..color = lineColor;
-    canvas.drawCircle(Offset(lastX, lastY), 4, dotPaint);
+    final dotGlow = Paint()
+      ..color = lineColor.withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawCircle(Offset(lastX, lastY), 5.5, dotGlow);
+
+    final dotPaint = Paint()..color = Colors.white;
+    canvas.drawCircle(Offset(lastX, lastY), 3.0, dotPaint);
   }
 
   @override
   bool shouldRepaint(covariant LiveChartPainter oldDelegate) {
-    return oldDelegate.dataPoints != dataPoints || oldDelegate.thresholdLine != thresholdLine;
+    return oldDelegate.dataPoints != dataPoints ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.thresholdLine != thresholdLine;
   }
 }

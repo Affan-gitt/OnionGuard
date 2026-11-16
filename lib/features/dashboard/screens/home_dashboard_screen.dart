@@ -1,302 +1,402 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utilities/risk_calculator.dart';
-import '../../../data/models/onion_item.dart';
-import '../../../data/models/activity_event.dart';
-import '../../../shared/widgets/custom_app_bar.dart';
-import '../../../shared/widgets/status_badge.dart';
+import '../../../data/models/sensor_reading.dart';
+import '../../../shared/widgets/onion_logo.dart';
 import '../../../shared/widgets/wifi_connection_dialog.dart';
-import '../../../shared/widgets/ble_scan_dialog.dart';
 import '../../../shared/widgets/usb_connection_dialog.dart';
+import '../../../shared/widgets/ble_scan_dialog.dart';
+import '../../live_sensors/widgets/live_chart_painter.dart';
+import '../widgets/circular_env_gauge.dart';
+import '../widgets/animated_fan_widget.dart';
+import '../widgets/gas_response_card.dart';
 
-import '../../live_sensors/screens/live_sensors_screen.dart';
-import '../../fan_control/screens/fan_control_screen.dart';
-import '../../gas_sensor/screens/gas_sensor_test_screen.dart';
-import '../../onion_inventory/screens/onion_shelves_screen.dart';
-import '../../activity_history/screens/activity_history_screen.dart';
-import '../../help_guide/screens/help_setup_screen.dart';
-import '../../hygiene/screens/hygiene_checklist_screen.dart';
-import '../../modelling/screens/mathematical_modelling_screen.dart';
-
-class HomeDashboardScreen extends ConsumerWidget {
+class HomeDashboardScreen extends ConsumerStatefulWidget {
   const HomeDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeDashboardScreen> createState() => _HomeDashboardScreenState();
+}
+
+class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
+  // Secret multi-tap gesture tracking for hidden demonstration control
+  int _secretTapCount = 0;
+  DateTime? _lastTapTime;
+
+  String _timeRange = '5m';
+  int _activeChartIndex = 0; // 0: Temp, 1: Humidity, 2: Gas ADC
+
+  void _handleLogoTap() {
+    final now = DateTime.now();
+    if (_lastTapTime == null || now.difference(_lastTapTime!).inMilliseconds > 2000) {
+      _secretTapCount = 1;
+    } else {
+      _secretTapCount++;
+    }
+    _lastTapTime = now;
+
+    if (_secretTapCount >= 5) {
+      _secretTapCount = 0;
+      final sim = ref.read(simulationServiceProvider);
+      if (sim.isActive) {
+        sim.stopSimulation();
+      } else {
+        sim.startSimulation();
+      }
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  void _showConnectionModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppConstants.deepForest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: AppConstants.borderEmerald, width: 1),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.sensors, color: AppConstants.emerald, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Hardware Controller Link',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppConstants.cream,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppConstants.mutedGreenGrey, size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildConnectionOption(
+              icon: Icons.wifi,
+              title: 'ESP32 Wi-Fi SoftAP / Local Network',
+              subtitle: 'Direct high-speed HTTP REST polling & commands (192.168.4.1)',
+              onTap: () {
+                Navigator.pop(ctx);
+                showWifiConnectionModal(context, ref);
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildConnectionOption(
+              icon: Icons.usb,
+              title: 'ESP32 USB-C CDC Serial',
+              subtitle: 'Direct hardware connection via USB-C OTG cable @ 115200 Baud',
+              onTap: () {
+                Navigator.pop(ctx);
+                showUsbConnectionModal(context, ref);
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildConnectionOption(
+              icon: Icons.bluetooth_searching,
+              title: 'Bluetooth LE (BLE GATT)',
+              subtitle: 'Wireless secondary peripheral monitoring channel',
+              onTap: () {
+                Navigator.pop(ctx);
+                showBleScanModal(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppConstants.darkCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppConstants.borderEmerald, width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppConstants.emerald.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: AppConstants.emerald, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.cream,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppConstants.mutedGreenGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppConstants.mutedGreenGrey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sensorState = ref.watch(sensorNotifierProvider);
     final actuator = ref.watch(actuatorNotifierProvider);
     final settings = ref.watch(settingsNotifierProvider);
-    final allOnions = ref.watch(onionInventoryNotifierProvider);
-    final events = ref.watch(eventsNotifierProvider);
-
     final reading = sensorState.latestReading;
-    final risk = sensorState.riskBreakdown ?? (reading != null
-        ? RiskCalculator.calculate(reading: reading, settings: settings)
-        : null);
+
+    final double temp = reading?.temperature ?? 0.0;
+    final double hum = reading?.humidity ?? 0.0;
+    final int rawGas = reading?.mq3RawAdc ?? 300;
+    final double deltaGas = reading?.mq3DeltaPercent ?? 0.0;
+
+    final bool isTempHigh = temp >= settings.triggerTemp;
+    final bool isHumHigh = hum >= settings.maxHumiditySafety;
+    final bool isGasSpike = deltaGas >= settings.mq3TriggerDeltaPercent;
 
     // Active Warnings check
-    final List<String> warnings = [];
+    final List<String> activeWarnings = [];
     if (reading != null) {
-      if (reading.temperature >= settings.triggerTemp) {
-        warnings.add('High Temperature (${reading.temperature}°C >= ${settings.triggerTemp}°C) - Exhaust ventilation active');
+      if (isTempHigh) {
+        activeWarnings.add('Temperature ${temp.toStringAsFixed(1)}°C exceeds threshold (${settings.triggerTemp}°C) - Ventilation active');
       }
-      if (reading.humidity >= settings.maxHumiditySafety) {
-        warnings.add('High Humidity Alert (${reading.humidity}% >= ${settings.maxHumiditySafety}%) - Risk of condensation & fungal growth');
+      if (isHumHigh) {
+        activeWarnings.add('High Humidity Alert (${hum.toStringAsFixed(1)}% >= ${settings.maxHumiditySafety}%) - Risk of condensation & fungal rot');
       }
-      if (reading.mq3DeltaPercent >= settings.mq3TriggerDeltaPercent) {
-        warnings.add('Gas Proxy Detection (+${reading.mq3DeltaPercent}% above baseline) - Demonstration actuator triggered');
+      if (isGasSpike) {
+        activeWarnings.add('Volatile Spoilage Gas Spike (+${deltaGas.toStringAsFixed(1)}%) - Secondary demonstration response active');
       }
     }
-    final int rotCount = allOnions.where((o) => o.condition == OnionCondition.visibleRot || o.condition == OnionCondition.mouldObserved).length;
-    if (rotCount > 0) {
-      warnings.add('Quarantine Alert: $rotCount onion(s) have visible rot or mould observed in storage shelves.');
+
+    final bool isCritical = isTempHigh || isHumHigh;
+    final bool isAttention = !isCritical && isGasSpike;
+    final String envStatusLabel = isCritical
+        ? 'CRITICAL ATTENTION'
+        : (isAttention ? 'ELEVATED GAS DETECTED' : 'STORAGE ENVIRONMENT STABLE');
+    final Color envStatusColor = isCritical
+        ? AppConstants.statusCritical
+        : (isAttention ? AppConstants.warmGold : AppConstants.emerald);
+
+    // Filter history for live chart
+    final history = sensorState.history;
+    List<SensorReading> filteredHistory = history;
+    if (_timeRange == '5m') {
+      filteredHistory = history.length > 30 ? history.sublist(history.length - 30) : history;
+    } else if (_timeRange == '30m') {
+      filteredHistory = history.length > 70 ? history.sublist(history.length - 70) : history;
     }
 
     return Scaffold(
-      appBar: const CustomAppBar(title: AppConstants.appName),
+      backgroundColor: AppConstants.darkBg,
       body: SafeArea(
-        top: false,
-        bottom: true,
         child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(14, 12, 14, MediaQuery.of(context).viewPadding.bottom + 20),
+          padding: EdgeInsets.fromLTRB(14, 10, 14, MediaQuery.of(context).viewPadding.bottom + 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Active Warnings Banner
-              if (warnings.isNotEmpty) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppConstants.statusRed.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppConstants.statusRed.withOpacity(0.35)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              // ==============================================================
+              // 1. TOP HEADER (BRANDING + SECRET DEMO TRIGGER)
+              // ==============================================================
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
                     children: [
-                      const Row(
+                      // Onion Guard Logo with Secret Multi-Tap Demonstration Switch
+                      AnimatedOnionLogo(
+                        size: 38,
+                        animateRings: true,
+                        showOrbitalRings: false,
+                        onTap: _handleLogoTap,
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.warning_amber_rounded, color: AppConstants.statusRed, size: 20),
-                          SizedBox(width: 8),
+                          Row(
+                            children: [
+                              Text(
+                                AppConstants.appName.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                  color: AppConstants.cream,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: sensorState.isHardwareConnected
+                                      ? AppConstants.emerald
+                                      : (sensorState.isSimulation ? AppConstants.lime : AppConstants.statusCritical),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.lime)
+                                          .withValues(alpha: 0.6),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                           Text(
-                            'Active Storage Alerts',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppConstants.statusRed),
+                            DateFormat('EEE, d MMM • HH:mm:ss').format(DateTime.now()),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppConstants.mutedGreenGrey,
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      ...warnings.map((w) => Padding(
-                            padding: const EdgeInsets.only(top: 3),
-                            child: Text('• $w', style: const TextStyle(fontSize: 11.5, color: Color(0xFF991B1B), height: 1.3)),
-                          )),
                     ],
                   ),
-                ),
-              ],
 
-              // Quick Environmental Summary Bar
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppConstants.subtleBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Current Storage Environment',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppConstants.primaryForest),
-                        ),
-                        if (sensorState.isSimulation)
-                          const StatusBadge(label: 'SIMULATED', color: Colors.orange, isSmall: true)
-                        else if (sensorState.isWifiConnected)
-                          const StatusBadge(label: 'LIVE WI-FI', color: AppConstants.statusGreen, isSmall: true)
-                        else if (sensorState.isUsbConnected)
-                          const StatusBadge(label: 'LIVE USB', color: AppConstants.statusGreen, isSmall: true)
-                        else if (sensorState.isBleConnected)
-                          const StatusBadge(label: 'LIVE BLE', color: AppConstants.statusGreen, isSmall: true)
-                        else
-                          const StatusBadge(label: 'OFFLINE', color: Colors.grey, isSmall: true),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildQuickPill(
-                            icon: Icons.thermostat,
-                            label: 'Temp',
-                            value: reading != null ? '${reading.temperature.toStringAsFixed(1)}°C' : '--',
-                            color: reading != null && reading.temperature >= settings.triggerTemp ? AppConstants.statusRed : AppConstants.primaryForest,
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildQuickPill(
-                            icon: Icons.water_drop_outlined,
-                            label: 'Humidity',
-                            value: reading != null ? '${reading.humidity.toStringAsFixed(1)}%' : '--',
-                            color: const Color(0xFF0284C7),
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildQuickPill(
-                            icon: Icons.science_outlined,
-                            label: 'Gas Δ',
-                            value: reading != null ? '${reading.mq3DeltaPercent > 0 ? "+" : ""}${reading.mq3DeltaPercent.toStringAsFixed(1)}%' : '--',
-                            color: Colors.purple,
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildQuickPill(
-                            icon: Icons.mode_fan_off,
-                            label: 'Exhaust',
-                            value: actuator.fanState ? 'ON' : 'IDLE',
-                            color: actuator.fanState ? AppConstants.statusGreen : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!sensorState.isHardwareConnected && !sensorState.isSimulation) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.info_outline, size: 14, color: Color(0xFF64748B)),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'HARDWARE DISCONNECTED • Connect ESP32 via Wi-Fi or launch Demo Mode',
-                                style: TextStyle(fontSize: 10.5, color: Color(0xFF475569), fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
+                  // Hardware Link Button / Connection Badge
+                  InkWell(
+                    onTap: () => _showConnectionModal(context),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppConstants.darkCard,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: sensorState.isHardwareConnected
+                              ? AppConstants.emerald.withValues(alpha: 0.6)
+                              : AppConstants.borderEmerald,
+                          width: 1,
                         ),
                       ),
-                    ] else if (sensorState.isHardwareConnected && reading == null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          children: [
-                            SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFB45309)),
+                      child: Row(
+                        children: [
+                          Icon(
+                            sensorState.isWifiConnected
+                                ? Icons.wifi
+                                : (sensorState.isUsbConnected
+                                    ? Icons.usb
+                                    : (sensorState.isBleConnected
+                                        ? Icons.bluetooth
+                                        : Icons.sensors_off)),
+                            size: 14,
+                            color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            sensorState.isWifiConnected
+                                ? 'WI-FI'
+                                : (sensorState.isUsbConnected
+                                    ? 'USB-C'
+                                    : (sensorState.isBleConnected
+                                        ? 'BLE'
+                                        : 'CONNECT')),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
                             ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'WAITING FOR SENSOR DATA • ESP32 connected, awaiting DHT11 / MQ-3 packets...',
-                                style: TextStyle(fontSize: 10.5, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-            // Hardware Disconnected Banner
-            if (!sensorState.isHardwareConnected && !sensorState.isSimulation) ...[
+              // ==============================================================
+              // 2. ENVIRONMENTAL STATUS BANNER
+              // ==============================================================
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
+                  color: envStatusColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: envStatusColor.withValues(alpha: 0.45), width: 1),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.wifi_off, color: Color(0xFFB45309), size: 26),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: envStatusColor,
+                        boxShadow: [
+                          BoxShadow(color: envStatusColor.withValues(alpha: 0.6), blurRadius: 6),
+                        ],
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'HARDWARE DISCONNECTED',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF92400E)),
+                          Text(
+                            envStatusLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: envStatusColor,
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Connect to ESP32 Wi-Fi (OnionGuard-WiFi or local network).',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF78350F)),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            children: [
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppConstants.primaryForest,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                                icon: const Icon(Icons.wifi, size: 14),
-                                label: const Text('Connect via Wi-Fi'),
-                                onPressed: () => showWifiConnectionModal(context, ref),
-                              ),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                                icon: const Icon(Icons.usb, size: 14),
-                                label: const Text('USB-C'),
-                                onPressed: () => showUsbConnectionModal(context, ref),
-                              ),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                                icon: const Icon(Icons.bluetooth, size: 14),
-                                label: const Text('Scan BLE'),
-                                onPressed: () => showBleScanModal(context, ref),
-                              ),
-                              OutlinedButton(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                                onPressed: () {
-                                  ref.read(simulationServiceProvider).startSimulation();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Interactive Demonstration Mode active! Live simulated telemetry streaming.'),
-                                      backgroundColor: AppConstants.statusAmber,
-                                    ),
-                                  );
-                                },
-                                child: const Text('Demo Mode'),
-                              ),
-                            ],
+                          Text(
+                            isCritical
+                                ? 'Storage limits violated. Automated exhaust ventilation active.'
+                                : 'Temperature & humidity within optimal conservation parameters.',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppConstants.cream,
+                            ),
                           ),
                         ],
                       ),
@@ -304,342 +404,281 @@ class HomeDashboardScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
+              const SizedBox(height: 14),
 
-            // Storage Health Summary Card
-            if (risk != null) ...[
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MathematicalModellingScreen()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppConstants.subtleBorder),
+              // ==============================================================
+              // 3. HERO SECTION: CIRCULAR ENVIRONMENTAL GAUGES
+              // ==============================================================
+              Row(
+                children: [
+                  Expanded(
+                    child: CircularEnvGauge(
+                      label: 'Temperature',
+                      value: temp,
+                      minValue: 10,
+                      maxValue: 45,
+                      thresholdValue: settings.triggerTemp,
+                      unit: '°C',
+                      icon: Icons.thermostat,
+                      activeColor: isTempHigh ? AppConstants.statusCritical : AppConstants.emerald,
+                      glowColor: isTempHigh
+                          ? AppConstants.statusCritical.withValues(alpha: 0.25)
+                          : AppConstants.glowEmerald,
+                      statusText: isTempHigh ? 'EXCEEDS ${settings.triggerTemp}°C' : 'SAFE (<${settings.triggerTemp}°C)',
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _getRiskColor(risk.classification).withOpacity(0.12),
-                          border: Border.all(color: _getRiskColor(risk.classification), width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${risk.overallScore.round()}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: _getRiskColor(risk.classification),
-                            ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: CircularEnvGauge(
+                      label: 'Humidity',
+                      value: hum,
+                      minValue: 30,
+                      maxValue: 100,
+                      thresholdValue: settings.maxHumiditySafety,
+                      unit: '% RH',
+                      icon: Icons.water_drop_outlined,
+                      activeColor: isHumHigh ? AppConstants.warmGold : const Color(0xFF38BDF8),
+                      glowColor: const Color(0xFF38BDF8).withValues(alpha: 0.20),
+                      statusText: isHumHigh ? 'INTERLOCK ACTIVE' : 'OPTIMAL (<${settings.maxHumiditySafety}%)',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ==============================================================
+              // 4. GAS-SENSOR RESPONSE (ALCOHOL / SPOILAGE PROXY)
+              // ==============================================================
+              GasResponseCard(
+                rawAdc: rawGas,
+                baselineAdc: settings.mq3Baseline,
+                deltaPercent: deltaGas,
+                triggerDeltaThreshold: settings.mq3TriggerDeltaPercent,
+                isTriggered: isGasSpike,
+              ),
+              const SizedBox(height: 12),
+
+              // ==============================================================
+              // 5. SYSTEM STATUS & ACTUATOR CONTROLS
+              // ==============================================================
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppConstants.darkCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppConstants.borderEmerald, width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'SYSTEM ACTUATORS & HARDWARE STATE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: AppConstants.mutedGreenGrey,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 6,
-                              runSpacing: 4,
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        // Exhaust Fan Card
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppConstants.darkCardSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: actuator.fanState
+                                    ? AppConstants.emerald.withValues(alpha: 0.5)
+                                    : AppConstants.borderSubtle,
+                              ),
+                            ),
+                            child: Row(
                               children: [
-                                const Text(
-                                  'Storage Health Score',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                                AnimatedFanWidget(
+                                  isRunning: actuator.fanState,
+                                  size: 36,
                                 ),
-                                StatusBadge(label: risk.classification.displayName, color: _getRiskColor(risk.classification), isSmall: true),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Exhaust Fan',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppConstants.cream),
+                                      ),
+                                      Text(
+                                        actuator.fanState ? 'RUNNING (ON)' : 'IDLE (OFF)',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: actuator.fanState ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch.adaptive(
+                                  value: actuator.fanState,
+                                  activeColor: AppConstants.emerald,
+                                  onChanged: (val) {
+                                    ref.read(actuatorNotifierProvider.notifier).toggleFan(val);
+                                  },
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Factor: ${risk.primaryContributingFactor}',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Humidifier / Demonstration Relay Card
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppConstants.darkCardSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: actuator.humidifierState
+                                    ? AppConstants.lime.withValues(alpha: 0.5)
+                                    : AppConstants.borderSubtle,
+                              ),
                             ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.cyclone,
+                                  size: 26,
+                                  color: actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Actuator',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppConstants.cream),
+                                      ),
+                                      Text(
+                                        actuator.humidifierState ? 'ACTIVE' : 'IDLE',
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch.adaptive(
+                                  value: actuator.humidifierState,
+                                  activeColor: AppConstants.lime,
+                                  onChanged: isHumHigh
+                                      ? null
+                                      : (val) {
+                                          ref.read(actuatorNotifierProvider.notifier).toggleHumidifier(val);
+                                        },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // ==============================================================
+              // 6. LIVE ENVIRONMENTAL GRAPH
+              // ==============================================================
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppConstants.darkCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppConstants.borderEmerald, width: 1),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Graph Header & Tabs
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            _buildChartTab(0, 'Temp', Icons.thermostat),
+                            const SizedBox(width: 6),
+                            _buildChartTab(1, 'Humidity', Icons.water_drop_outlined),
+                            const SizedBox(width: 6),
+                            _buildChartTab(2, 'Gas ADC', Icons.science_outlined),
                           ],
                         ),
+                        // Time Range Selector
+                        Row(
+                          children: [
+                            _buildTimeRangeButton('5m'),
+                            _buildTimeRangeButton('30m'),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Chart Canvas
+                    SizedBox(
+                      height: 150,
+                      child: CustomPaint(
+                        size: Size.infinite,
+                        painter: _createChartPainter(filteredHistory, settings),
                       ),
-                      const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
             ],
-
-            // Main 6 Navigation Cards (2-column Grid)
-            const Text(
-              'System Modules',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: AppConstants.primaryForest,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 0.94,
-              children: [
-                _buildModuleCard(
-                  context,
-                  title: '1. Live Room Sensors',
-                  description: 'Monitor temperature, humidity and sensor readings.',
-                  icon: Icons.thermostat_outlined,
-                  color: AppConstants.primaryForest,
-                  targetScreen: const LiveSensorsScreen(),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: '2. Fan, Cooling & Gas Response',
-                  description: 'Monitor automatic ventilation and control demonstration actuator.',
-                  icon: Icons.mode_fan_off,
-                  color: AppConstants.primaryLight,
-                  targetScreen: const FanControlScreen(),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: '3. Gas Sensor Test',
-                  description: 'Run controlled 9-step sensor response test with live curve.',
-                  icon: Icons.science_outlined,
-                  color: Colors.purple,
-                  targetScreen: const GasSensorTestScreen(),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: '4. Onion Storage Shelves',
-                  description: 'Inspect storage racks and track onion conditions.',
-                  icon: Icons.grid_view_outlined,
-                  color: Colors.deepOrange,
-                  targetScreen: const OnionShelvesScreen(),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: '5. Activity History',
-                  description: 'View chronological events, telemetries, inspections & alerts.',
-                  icon: Icons.history_outlined,
-                  color: const Color(0xFF0284C7),
-                  targetScreen: const ActivityHistoryScreen(),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: '6. Help & Setup Guide',
-                  description: 'Wiring diagrams, parts list, pinout and troubleshooting.',
-                  icon: Icons.help_outline,
-                  color: const Color(0xFF475569),
-                  targetScreen: const HelpSetupScreen(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Additional Engineering Links Row (Hygiene & Mathematical Modelling)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                      side: const BorderSide(color: AppConstants.subtleBorder),
-                      backgroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.checklist_rtl, size: 18, color: AppConstants.primaryForest),
-                    label: const Text('Hygiene Checklist', style: TextStyle(fontSize: 12, color: AppConstants.primaryForest)),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const HygieneChecklistScreen()),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                      side: const BorderSide(color: AppConstants.subtleBorder),
-                      backgroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.calculate_outlined, size: 18, color: AppConstants.primaryForest),
-                    label: const Text('Risk Modelling', style: TextStyle(fontSize: 12, color: AppConstants.primaryForest)),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MathematicalModellingScreen()),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Latest Activity Card
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppConstants.subtleBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Latest System Activity',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppConstants.primaryForest),
-                      ),
-                      InkWell(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const ActivityHistoryScreen()),
-                          );
-                        },
-                        child: const Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppConstants.primaryForest)),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 18),
-                  if (events.isEmpty)
-                    const Text('No recent system events.', style: TextStyle(fontSize: 12, color: Colors.grey))
-                  else
-                    ...events.take(3).map((e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(shape: BoxShape.circle, color: e.severity.color),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  e.title,
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                '${e.timestamp.hour.toString().padLeft(2, '0')}:${e.timestamp.minute.toString().padLeft(2, '0')}',
-                                style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
-                              ),
-                            ],
-                          ),
-                        )),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
-    ),
-  );
-}
-
-  Widget _buildQuickPill({required IconData icon, required String label, required String value, required Color color}) {
-    return Column(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-      ],
     );
   }
 
-  Widget _buildModuleCard(
-    BuildContext context, {
-    required String title,
-    required String description,
-    required IconData icon,
-    required Color color,
-    required Widget targetScreen,
-  }) {
+  Widget _buildChartTab(int index, String label, IconData icon) {
+    final bool isSelected = _activeChartIndex == index;
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => targetScreen),
-        );
-      },
-      borderRadius: BorderRadius.circular(14),
+      onTap: () => setState(() => _activeChartIndex = index),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppConstants.subtleBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.015),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: isSelected ? AppConstants.emerald.withValues(alpha: 0.20) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(color: AppConstants.emerald.withValues(alpha: 0.7), width: 1)
+              : Border.all(color: Colors.transparent),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF64748B),
-                      height: 1.25,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            Icon(icon, size: 12, color: isSelected ? AppConstants.emerald : AppConstants.mutedGreenGrey),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? AppConstants.cream : AppConstants.mutedGreenGrey,
               ),
             ),
           ],
@@ -648,16 +687,72 @@ class HomeDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Color _getRiskColor(HealthClassification c) {
-    switch (c) {
-      case HealthClassification.good:
-        return AppConstants.statusGreen;
-      case HealthClassification.attentionRequired:
-        return AppConstants.statusAmber;
-      case HealthClassification.highRisk:
-        return Colors.deepOrange;
-      case HealthClassification.critical:
-        return AppConstants.statusRed;
+  Widget _buildTimeRangeButton(String range) {
+    final bool isSelected = _timeRange == range;
+    return InkWell(
+      onTap: () => setState(() => _timeRange = range),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        margin: const EdgeInsets.only(left: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? AppConstants.emerald.withValues(alpha: 0.25) : AppConstants.darkCardSurface,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          range,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+          ),
+        ),
+      ),
+    );
+  }
+
+  LiveChartPainter _createChartPainter(List<SensorReading> history, settings) {
+    List<double> points = [];
+    Color color = AppConstants.emerald;
+    double? threshold;
+    double minY = 0, maxY = 50;
+    String unit = '°C';
+
+    if (_activeChartIndex == 0) {
+      points = history.map((r) => r.temperature).where((t) => t > -100).toList();
+      color = AppConstants.emerald;
+      threshold = settings.triggerTemp;
+      minY = 15.0;
+      maxY = 40.0;
+      unit = '°C';
+    } else if (_activeChartIndex == 1) {
+      points = history.map((r) => r.humidity).where((h) => h > -100).toList();
+      color = const Color(0xFF38BDF8);
+      threshold = settings.maxHumiditySafety;
+      minY = 40.0;
+      maxY = 90.0;
+      unit = '%';
+    } else {
+      points = history.map((r) => r.mq3RawAdc.toDouble()).where((g) => g > 0).toList();
+      color = AppConstants.warmGold;
+      threshold = (settings.mq3Baseline * (1 + settings.mq3TriggerDeltaPercent / 100)).toDouble();
+      minY = 200.0;
+      maxY = 1500.0;
+      unit = 'ADC';
     }
+
+    if (points.isEmpty) {
+      points = [22.0, 22.0];
+    }
+
+    return LiveChartPainter(
+      dataPoints: points,
+      lineColor: color,
+      thresholdLine: threshold,
+      thresholdColor: AppConstants.warmGold,
+      minY: minY,
+      maxY: maxY,
+      unit: unit,
+    );
   }
 }

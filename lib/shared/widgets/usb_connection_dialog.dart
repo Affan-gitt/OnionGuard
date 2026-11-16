@@ -10,8 +10,10 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    backgroundColor: AppConstants.darkBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      side: BorderSide(color: AppConstants.borderEmerald, width: 1),
     ),
     builder: (ctx) {
       return StatefulBuilder(
@@ -36,16 +38,16 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.usb, color: AppConstants.primaryForest, size: 24),
+                            Icon(Icons.usb, color: AppConstants.emerald, size: 24),
                             SizedBox(width: 8),
                             Text(
                               'ESP32-H2 USB-C Connection',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppConstants.primaryForest),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppConstants.cream),
                             ),
                           ],
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close),
+                          icon: const Icon(Icons.close, color: AppConstants.mutedGreenGrey),
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
@@ -53,14 +55,14 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                     const SizedBox(height: 6),
                     const Text(
                       'Direct Android USB Host communication (CDC-ACM Serial @ 115200 Baud). Connect via USB-C to USB-C or OTG cable.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      style: TextStyle(fontSize: 12, color: AppConstants.mutedGreenGrey),
                     ),
-                    const Divider(height: 24),
+                    const Divider(height: 24, color: AppConstants.borderEmerald),
 
                     if (isLoading) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 36),
-                        child: Center(child: CircularProgressIndicator(color: AppConstants.primaryForest)),
+                        child: Center(child: CircularProgressIndicator(color: AppConstants.emerald)),
                       ),
                     ] else if (devices.isEmpty) ...[
                       Padding(
@@ -71,21 +73,22 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: AppConstants.darkCardSurface,
                                   shape: BoxShape.circle,
+                                  border: Border.all(color: AppConstants.borderEmerald),
                                 ),
-                                child: const Icon(Icons.usb_off, size: 40, color: Colors.grey),
+                                child: const Icon(Icons.usb_off, size: 40, color: AppConstants.mutedGreenGrey),
                               ),
                               const SizedBox(height: 14),
                               const Text(
                                 'No USB Device Detected',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF334155)),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppConstants.cream),
                               ),
                               const SizedBox(height: 6),
                               const Text(
                                 '1. Plug a USB-C cable from phone to ESP32-H2.\n2. Ensure USB OTG is enabled in Android Settings.\n3. Verify ESP32 power LED is lit.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                style: TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey),
                               ),
                             ],
                           ),
@@ -95,7 +98,7 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                       ListView.separated(
                         shrinkWrap: true,
                         itemCount: devices.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: AppConstants.borderEmerald),
                         itemBuilder: (context, index) {
                           final dev = devices[index];
                           final isEsp = dev.isEsp32 || dev.vendorId == 12346 || dev.vendorId == 0x303A;
@@ -105,26 +108,29 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                             leading: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isEsp ? AppConstants.statusGreen.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                                color: isEsp ? AppConstants.emerald.withValues(alpha: 0.15) : AppConstants.darkCardSurface,
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isEsp ? AppConstants.emerald : AppConstants.borderEmerald,
+                                ),
                               ),
                               child: Icon(
                                 Icons.developer_board,
-                                color: isEsp ? AppConstants.statusGreen : Colors.grey,
+                                color: isEsp ? AppConstants.emerald : AppConstants.mutedGreenGrey,
                               ),
                             ),
                             title: Text(
                               isEsp ? 'ESP32-H2 DevKit 4' : dev.productName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppConstants.cream),
                             ),
                             subtitle: Text(
                               'VID: 0x${dev.vendorId.toRadixString(16).toUpperCase()} • PID: 0x${dev.productId.toRadixString(16).toUpperCase()} • ${dev.deviceName}',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                              style: const TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey),
                             ),
                             trailing: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isEsp ? AppConstants.primaryForest : Colors.grey.shade700,
-                                foregroundColor: Colors.white,
+                                backgroundColor: isEsp ? AppConstants.emerald : AppConstants.darkCardSurface,
+                                foregroundColor: isEsp ? AppConstants.darkBg : AppConstants.cream,
                               ),
                               onPressed: () async {
                                 Navigator.pop(ctx);
@@ -133,7 +139,7 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Connected to ESP32-H2 via USB CDC Serial!'),
-                                      backgroundColor: AppConstants.statusGreen,
+                                      backgroundColor: AppConstants.emerald,
                                     ),
                                   );
                                 }
@@ -159,7 +165,10 @@ void showUsbConnectionModal(BuildContext context, WidgetRef ref) async {
                           const SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: AppConstants.statusRed),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppConstants.statusCritical,
+                                foregroundColor: Colors.white,
+                              ),
                               icon: const Icon(Icons.close, size: 16),
                               label: const Text('Disconnect'),
                               onPressed: () {

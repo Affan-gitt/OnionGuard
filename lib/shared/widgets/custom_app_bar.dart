@@ -58,26 +58,30 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
 
   @override
   Widget build(BuildContext context) {
+    final wifiService = ref.watch(wifiEsp32ServiceProvider);
     final usbService = ref.watch(usbSerialServiceProvider);
     final bleService = ref.watch(bleServiceProvider);
     final simService = ref.watch(simulationServiceProvider);
 
     final bool isSim = simService.isActive;
+    final bool isWifi = wifiService.isConnected;
     final bool isUsb = usbService.isConnected;
     final bool isBle = bleService.state == BleConnectionState.connected;
-    final bool isConnected = isUsb || isBle;
+    final bool isConnected = isWifi || isUsb || isBle;
 
-    final Color pillColor = isSim
-        ? AppConstants.statusAmber
-        : (isConnected ? AppConstants.accentSage : Colors.white70);
-    final IconData pillIcon = isSim
-        ? Icons.smart_toy
-        : (isUsb ? Icons.usb : (isBle ? Icons.bluetooth_connected : Icons.usb_off));
-    final String pillLabel = isSim
-        ? 'SIM'
-        : (isUsb ? 'USB OK' : (isBle ? 'BLE OK' : 'DISCONNECTED'));
+    // In demo mode, status is seamlessly active without any visible "SIMULATION" label
+    final Color pillColor = (isConnected || isSim) ? AppConstants.emerald : AppConstants.mutedGreenGrey;
+    final IconData pillIcon = isWifi
+        ? Icons.wifi
+        : (isUsb ? Icons.usb : (isBle ? Icons.bluetooth_connected : (isSim ? Icons.sensors : Icons.sensors_off)));
+    final String pillLabel = isWifi
+        ? 'WIFI OK'
+        : (isUsb ? 'USB OK' : (isBle ? 'BLE OK' : (isSim ? 'SENSORS OK' : 'OFFLINE')));
 
     return AppBar(
+      backgroundColor: AppConstants.darkBg,
+      foregroundColor: AppConstants.cream,
+      elevation: 0,
       automaticallyImplyLeading: widget.showBack,
       titleSpacing: widget.showBack ? 0 : 16,
       title: InkWell(
@@ -99,10 +103,11 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7D4698),
+                      color: AppConstants.deepForest,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppConstants.emerald),
                     ),
-                    child: const Icon(Icons.shield_outlined, color: Colors.white, size: 20),
+                    child: const Icon(Icons.shield_outlined, color: AppConstants.emerald, size: 20),
                   ),
                 ),
               ),
@@ -111,43 +116,20 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      if (isSim) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppConstants.statusAmber,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'SIMULATION',
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppConstants.cream,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                   Text(
                     DateFormat('EEE, d MMM • HH:mm').format(DateTime.now()),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withOpacity(0.8),
+                      color: AppConstants.mutedGreenGrey,
                     ),
                   ),
                 ],
@@ -157,27 +139,20 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
         ),
       ),
       actions: [
-        // Connection status pill (clickable to connect USB or configure simulation)
+        // Connection status pill
         InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
-            if (isSim) {
-              showDialog(
-                context: context,
-                builder: (_) => const DeveloperPinDialog(),
-              );
-            } else {
-              showUsbConnectionModal(context, ref);
-            }
+            showUsbConnectionModal(context, ref);
           },
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 16),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: pillColor.withOpacity(0.2),
+              color: pillColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: pillColor.withOpacity(0.6),
+                color: pillColor.withValues(alpha: 0.5),
                 width: 1,
               ),
             ),
@@ -206,7 +181,7 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
 
         // Activity / Alerts bell
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, size: 22),
+          icon: const Icon(Icons.notifications_outlined, size: 22, color: AppConstants.cream),
           tooltip: 'Activity History & Alerts',
           onPressed: () {
             Navigator.of(context).push(
@@ -217,7 +192,7 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
 
         // Settings gear
         IconButton(
-          icon: const Icon(Icons.settings_outlined, size: 22),
+          icon: const Icon(Icons.settings_outlined, size: 22, color: AppConstants.cream),
           tooltip: 'Settings',
           onPressed: () {
             Navigator.of(context).push(

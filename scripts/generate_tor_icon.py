@@ -1,67 +1,83 @@
 import os
 import math
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
-def render_tor_onion(size):
+def render_onionguard_icon(size):
     """
-    Renders the Tor Project onion logo:
-    - Deep Tor purple circular background (#7D4698)
-    - Distinctive onion silhouette
-    - Left side: Concentric curved onion layers / rings in crisp white
-    - Right side: Smooth onion contour in white
-    - Top: Characteristic green onion sprout (#58B653)
-    - Center core: Solid white nucleus
+    Renders the Onion Guard premium IoT icon:
+    - Deep forest-green (#071D13) and near-black (#06100C) circular badge
+    - Luminous emerald (#00D68F) outer ring with subtle neon halo
+    - Left side: Concentric curved onion layers / rings in luminous emerald (#00D68F) and cream (#F3F0DF)
+    - Right side: Smooth onion bulb contour in luminous emerald
+    - Top: Dual vibrant lime (#B6F36B) and emerald sprout
+    - Center core: Solid cream/emerald nucleus
     """
-    scale = 4  # 4x supersampling for high-quality antialiasing
+    scale = 4  # 4x supersampling for ultra-crisp antialiasing
     s = size * scale
     img = Image.new('RGBA', (s, s), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # 1. Background circular badge
-    margin = s * 0.03
-    bg_box = [margin, margin, s - margin, s - margin]
-    # Tor official purple #7D4698
-    draw.ellipse(bg_box, fill=(125, 70, 152, 255))
-
+    margin = s * 0.04
     cx = s * 0.50
     cy = s * 0.53
     r = s * 0.35
     line_w = max(2, int(s * 0.042))
 
-    # 2. Right half outer contour (smooth outer onion bulb)
-    draw.arc([cx - r, cy - r, cx + r, cy + r], start=-90, end=90, fill=(255, 255, 255, 255), width=line_w)
+    # 1. Subtle emerald neon outer glow ring
+    for offset, alpha in [(s * 0.015, 35), (s * 0.008, 60)]:
+        glow_box = [margin - offset, margin - offset, s - margin + offset, s - margin + offset]
+        draw.ellipse(glow_box, fill=(0, 214, 143, alpha))
 
-    # 3. Concentric left onion rings (layers of the onion)
+    # 2. Main circular badge background: Deep forest green #071D13
+    bg_box = [margin, margin, s - margin, s - margin]
+    draw.ellipse(bg_box, fill=(7, 29, 19, 255))
+
+    # 3. Outer ring border in luminous emerald #00D68F
+    border_w = max(2, int(s * 0.022))
+    draw.ellipse(bg_box, outline=(0, 214, 143, 230), width=border_w)
+
+    # 4. Right half outer contour (smooth outer onion bulb) - Luminous Emerald
+    draw.arc([cx - r, cy - r, cx + r, cy + r], start=-90, end=90, fill=(0, 214, 143, 255), width=line_w)
+
+    # 5. Concentric left onion rings (layers of the onion)
     num_layers = 4
+    layer_colors = [
+        (243, 240, 223, 255),  # Cream #F3F0DF
+        (0, 214, 143, 255),    # Emerald #00D68F
+        (182, 243, 107, 255),  # Lime #B6F36B
+        (0, 214, 143, 255),    # Emerald #00D68F
+    ]
     for i in range(1, num_layers + 1):
         cur_r = r * (i / num_layers)
-        draw.arc([cx - cur_r, cy - cur_r, cx + cur_r, cy + cur_r], start=90, end=270, fill=(255, 255, 255, 255), width=line_w)
+        c = layer_colors[(i - 1) % len(layer_colors)]
+        draw.arc([cx - cur_r, cy - cur_r, cx + cur_r, cy + cur_r], start=90, end=270, fill=c, width=line_w)
 
-    # 4. Vertical axis separator line (subtle layer boundary)
-    draw.line([(cx, cy - r), (cx, cy + r)], fill=(255, 255, 255, 255), width=int(line_w * 0.7))
+    # 6. Vertical axis separator line
+    draw.line([(cx, cy - r), (cx, cy + r)], fill=(243, 240, 223, 240), width=int(line_w * 0.75))
 
-    # 5. Onion center core (solid white bulb core)
+    # 7. Onion center core (solid bulb nucleus)
     core_r = r * 0.20
-    draw.ellipse([cx - core_r, cy - core_r, cx + core_r, cy + core_r], fill=(255, 255, 255, 255))
+    draw.ellipse([cx - core_r, cy - core_r, cx + core_r, cy + core_r], fill=(243, 240, 223, 255))
+    inner_dot = core_r * 0.50
+    draw.ellipse([cx - inner_dot, cy - inner_dot, cx + inner_dot, cy + inner_dot], fill=(0, 214, 143, 255))
 
-    # 6. Green Sprout / Shoot at the top
+    # 8. Lime & Emerald Sprout at the top
     sprout_base_y = cy - r
-    # Main stem
-    stem_top_x = cx + s * 0.02
-    stem_top_y = cy - r - s * 0.15
+    stem_top_x = cx + s * 0.025
+    stem_top_y = cy - r - s * 0.16
     draw.polygon([
-        (cx - s * 0.03, sprout_base_y),
-        (cx + s * 0.03, sprout_base_y),
+        (cx - s * 0.035, sprout_base_y),
+        (cx + s * 0.035, sprout_base_y),
         (stem_top_x + s * 0.025, stem_top_y),
         (stem_top_x - s * 0.025, stem_top_y),
-    ], fill=(88, 182, 83, 255)) # Tor green #58B653
+    ], fill=(182, 243, 107, 255))  # Lime #B6F36B
 
-    # Small secondary green leaf tip angling right
+    # Secondary sprout leaf angling right in emerald #00D68F
     draw.polygon([
-        (cx + s * 0.01, sprout_base_y - s * 0.04),
-        (cx + s * 0.08, sprout_base_y - s * 0.11),
-        (cx + s * 0.03, sprout_base_y - s * 0.07),
-    ], fill=(112, 198, 102, 255))
+        (cx + s * 0.015, sprout_base_y - s * 0.03),
+        (cx + s * 0.095, sprout_base_y - s * 0.12),
+        (cx + s * 0.035, sprout_base_y - s * 0.08),
+    ], fill=(0, 214, 143, 255))
 
     # Downscale using Lanczos filter for smooth antialiasing
     return img.resize((size, size), Image.Resampling.LANCZOS)
@@ -74,15 +90,21 @@ def main():
         'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png': 144,
         'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png': 192,
         'assets/images/tor_logo.png': 512,
+        'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png': 1024,
     }
+
+    # Also generate common iOS icon sizes if the asset catalog exists
+    ios_sizes = [20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180]
+    for sz in ios_sizes:
+        targets[f'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-{sz}x{sz}.png'] = sz
 
     os.makedirs('assets/images', exist_ok=True)
 
     for path, size in targets.items():
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        icon = render_tor_onion(size)
+        icon = render_onionguard_icon(size)
         icon.save(path, format='PNG')
-        print(f"Generated {size}x{size} Tor icon at: {path}")
+        print(f"Generated {size}x{size} Onion Guard icon at: {path}")
 
 if __name__ == '__main__':
     main()

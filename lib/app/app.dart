@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_constants.dart';
 import 'theme.dart';
-import '../features/dashboard/screens/home_dashboard_screen.dart';
+import '../features/splash/screens/splash_screen.dart';
 
 class OnionGuardApp extends StatelessWidget {
   const OnionGuardApp({super.key});
@@ -11,8 +11,8 @@ class OnionGuardApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: const HomeDashboardScreen(),
+      theme: AppTheme.darkTheme,
+      home: const SplashScreen(),
     );
   }
 }

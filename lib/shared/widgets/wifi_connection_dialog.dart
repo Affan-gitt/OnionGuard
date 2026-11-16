@@ -7,8 +7,10 @@ void showWifiConnectionModal(BuildContext context, WidgetRef ref) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    backgroundColor: AppConstants.darkBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      side: BorderSide(color: AppConstants.borderEmerald, width: 1),
     ),
     builder: (ctx) => const WifiConnectionSheet(),
   );
@@ -94,16 +96,16 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.wifi, color: AppConstants.primaryForest, size: 24),
+                  Icon(Icons.wifi, color: AppConstants.emerald, size: 24),
                   SizedBox(width: 8),
                   Text(
                     'ESP32 Wi-Fi Setup',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppConstants.primaryForest),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppConstants.cream),
                   ),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close, color: AppConstants.mutedGreenGrey),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -114,15 +116,18 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isConnected ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+              color: AppConstants.darkCard,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: isConnected ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA)),
+              border: Border.all(
+                color: isConnected ? AppConstants.emerald : AppConstants.statusCritical,
+                width: 1,
+              ),
             ),
             child: Row(
               children: [
                 Icon(
                   isConnected ? Icons.check_circle : Icons.wifi_off,
-                  color: isConnected ? AppConstants.statusGreen : AppConstants.statusRed,
+                  color: isConnected ? AppConstants.emerald : AppConstants.statusCritical,
                   size: 20,
                 ),
                 const SizedBox(width: 10),
@@ -135,14 +140,16 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isConnected ? const Color(0xFF15803D) : const Color(0xFF991B1B),
+                          color: isConnected ? AppConstants.emerald : AppConstants.statusCritical,
                         ),
                       ),
                       Text(
-                        isConnected ? 'Receiving real-time sensor stream from ${wifi.espIp}' : 'Enter ESP32 IP or connect to OnionGuard hotspot',
-                        style: TextStyle(
+                        isConnected
+                            ? 'Receiving real-time sensor stream from ${wifi.espIp}'
+                            : 'Enter ESP32 IP or connect to OnionGuard hotspot',
+                        style: const TextStyle(
                           fontSize: 11,
-                          color: isConnected ? const Color(0xFF166534) : const Color(0xFF7F1D1D),
+                          color: AppConstants.mutedGreenGrey,
                         ),
                       ),
                     ],
@@ -161,10 +168,11 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
                 child: TextField(
                   controller: _ipController,
                   keyboardType: TextInputType.url,
+                  style: const TextStyle(color: AppConstants.cream, fontSize: 13),
                   decoration: const InputDecoration(
                     labelText: 'ESP32 IP Address or Hostname',
                     hintText: '192.168.4.1 or onionguard.local',
-                    prefixIcon: Icon(Icons.dns_outlined, size: 20),
+                    prefixIcon: Icon(Icons.dns_outlined, size: 20, color: AppConstants.emerald),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                 ),
@@ -175,6 +183,7 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
                 child: TextField(
                   controller: _portController,
                   keyboardType: TextInputType.number,
+                  style: const TextStyle(color: AppConstants.cream, fontSize: 13),
                   decoration: const InputDecoration(
                     labelText: 'Port',
                     hintText: '80',
@@ -192,8 +201,8 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
               icon: const Icon(Icons.link_off, size: 18),
               label: const Text('Disconnect Wi-Fi Link'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppConstants.statusRed,
-                side: const BorderSide(color: AppConstants.statusRed),
+                foregroundColor: AppConstants.statusCritical,
+                side: const BorderSide(color: AppConstants.statusCritical),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: _handleDisconnect,
@@ -201,12 +210,12 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
           ] else ...[
             ElevatedButton.icon(
               icon: _isConnecting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppConstants.darkBg))
                   : const Icon(Icons.wifi, size: 18),
               label: Text(_isConnecting ? 'Connecting...' : 'Connect to ESP32 Wi-Fi'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppConstants.primaryForest,
-                foregroundColor: Colors.white,
+                backgroundColor: AppConstants.emerald,
+                foregroundColor: AppConstants.darkBg,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: _isConnecting ? null : _handleConnect,
@@ -221,7 +230,7 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: isConnected ? AppConstants.statusGreen : AppConstants.statusRed,
+                color: isConnected ? AppConstants.emerald : AppConstants.statusCritical,
               ),
             ),
           ],
@@ -231,20 +240,25 @@ class _WifiConnectionSheetState extends ConsumerState<WifiConnectionSheet> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: AppConstants.darkCardSurface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppConstants.subtleBorder),
+              border: Border.all(color: AppConstants.borderEmerald),
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('How to connect your phone/laptop to ESP32:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                Text(
+                  'How to connect your phone/laptop to ESP32:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppConstants.cream),
+                ),
                 SizedBox(height: 6),
-                Text('• Option A (Direct Hotspot - No Router Needed):\n'
-                    '   Connect your phone Wi-Fi to "OnionGuard-WiFi" (Password: onionguard123). Keep IP as 192.168.4.1.\n\n'
-                    '• Option B (Home / Storage Wi-Fi):\n'
-                    '   If ESP32 is joined to your router, type its assigned local IP (e.g. 192.168.1.50 or onionguard.local).',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.35)),
+                Text(
+                  '• Option A (Direct Hotspot - No Router Needed):\n'
+                  '   Connect your phone Wi-Fi to "OnionGuard-WiFi" (Password: onionguard123). Keep IP as 192.168.4.1.\n\n'
+                  '• Option B (Home / Storage Wi-Fi):\n'
+                  '   If ESP32 is joined to your router, type its assigned local IP (e.g. 192.168.1.50 or onionguard.local).',
+                  style: TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey, height: 1.35),
+                ),
               ],
             ),
           ),

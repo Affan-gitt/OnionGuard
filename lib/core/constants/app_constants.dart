@@ -2,24 +2,40 @@ import 'package:flutter/material.dart';
 
 class AppConstants {
   static const String appName = 'OnionGuard';
-  static const String appTagline = 'Smart Onion Storage & Environmental Management';
-  static const String appVersion = '1.0.0 (Build 1)';
+  static const String appTagline = 'Smart Agricultural IoT Environmental Control';
+  static const String appVersion = '2.0.0 (Pro IoT)';
 
-  // Colors based on specification
-  static const Color primaryForest = Color(0xFF1B4332);
-  static const Color primaryLight = Color(0xFF2D6A4F);
-  static const Color accentSage = Color(0xFF52B788);
-  static const Color bgIvory = Color(0xFFF8F9F5);
-  static const Color cardWhite = Color(0xFFFFFFFF);
-  static const Color lightGrey = Color(0xFFF1F3ED);
-  static const Color subtleBorder = Color(0xFFE2E6DF);
+  // Futuristic Agricultural IoT Palette
+  static const Color darkBg = Color(0xFF06100C);           // Near-black #06100C
+  static const Color deepForest = Color(0xFF071D13);       // Deep forest green #071D13
+  static const Color darkCard = Color(0xFF0C251A);         // Layered dark card
+  static const Color darkCardSurface = Color(0xFF113224);  // Elevated card surface
+  static const Color darkCardLight = Color(0xFF163E2D);    // Highlighted card surface
+  static const Color emerald = Color(0xFF00D68F);          // Luminous Emerald #00D68F
+  static const Color lime = Color(0xFFB6F36B);             // Vibrant Lime #B6F36B
+  static const Color warmGold = Color(0xFFD6A64B);         // Warm Gold #D6A64B
+  static const Color cream = Color(0xFFF3F0DF);            // Cream #F3F0DF
+  static const Color mutedGreenGrey = Color(0xFF8B9E94);   // Muted Green-Grey #8B9E94
+  static const Color borderEmerald = Color(0x3300D68F);    // Glowing Emerald Border
+  static const Color borderSubtle = Color(0x1F00D68F);     // Subtle Border
+  static const Color glowEmerald = Color(0x4D00D68F);      // Emerald Glow
+  static const Color statusCritical = Color(0xFFFF4D4D);   // Critical Red Alert
+
+  // Legacy mappings for backward compatibility
+  static const Color primaryForest = deepForest;
+  static const Color primaryLight = emerald;
+  static const Color accentSage = lime;
+  static const Color bgIvory = darkBg;
+  static const Color cardWhite = darkCard;
+  static const Color lightGrey = darkCardSurface;
+  static const Color subtleBorder = borderEmerald;
 
   // Status Colors
-  static const Color statusGreen = Color(0xFF2D6A4F); // Healthy / Normal
-  static const Color statusAmber = Color(0xFFD97706); // Warning / Attention
-  static const Color statusRed = Color(0xFFDC2626);   // Critical / Deterioration
-  static const Color statusGrey = Color(0xFF94A3B8);  // Inactive / Empty
-  static const Color statusBlue = Color(0xFF2563EB);  // Info / Connectivity
+  static const Color statusGreen = emerald;
+  static const Color statusAmber = warmGold;
+  static const Color statusRed = statusCritical;
+  static const Color statusGrey = mutedGreenGrey;
+  static const Color statusBlue = Color(0xFF38BDF8);
 
   // Default Environmental Thresholds
   static const double defaultTargetTemp = 20.0;

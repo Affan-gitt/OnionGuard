@@ -11,8 +11,10 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    backgroundColor: AppConstants.darkBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      side: BorderSide(color: AppConstants.borderEmerald, width: 1),
     ),
     builder: (ctx) {
       return Container(
@@ -29,16 +31,16 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.bluetooth_searching, color: AppConstants.primaryForest, size: 24),
+                    Icon(Icons.bluetooth_searching, color: AppConstants.emerald, size: 24),
                     SizedBox(width: 8),
                     Text(
                       'Connect ESP32-H2 Hardware',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppConstants.primaryForest),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppConstants.cream),
                     ),
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close, color: AppConstants.mutedGreenGrey),
                   onPressed: () {
                     ble.stopScan();
                     Navigator.pop(ctx);
@@ -49,9 +51,9 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
             const SizedBox(height: 6),
             const Text(
               'Scanning for nearby OnionGuard ESP32-H2 DevKit units advertising BLE GATT service...',
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              style: TextStyle(fontSize: 12, color: AppConstants.mutedGreenGrey),
             ),
-            const Divider(height: 24),
+            const Divider(height: 24, color: AppConstants.borderEmerald),
             StreamBuilder<List<DiscoveredBleDevice>>(
               stream: ble.discoveredDevicesStream,
               builder: (context, snapshot) {
@@ -62,16 +64,16 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
                     child: Center(
                       child: Column(
                         children: [
-                          CircularProgressIndicator(color: AppConstants.primaryForest),
+                          CircularProgressIndicator(color: AppConstants.emerald),
                           SizedBox(height: 16),
                           Text(
                             'Listening for ESP32-H2 advertisement packets...',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            style: TextStyle(fontSize: 13, color: AppConstants.mutedGreenGrey),
                           ),
                           SizedBox(height: 6),
                           Text(
                             'Make sure your ESP32-H2 board is powered ON',
-                            style: TextStyle(fontSize: 11, color: Colors.black45),
+                            style: TextStyle(fontSize: 11, color: Color(0xFF5A7266)),
                           ),
                         ],
                       ),
@@ -82,7 +84,7 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
                 return ListView.separated(
                   shrinkWrap: true,
                   itemCount: devices.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppConstants.borderEmerald),
                   itemBuilder: (context, index) {
                     final dev = devices[index];
                     return ListTile(
@@ -90,20 +92,21 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppConstants.primaryForest.withOpacity(0.08),
+                          color: AppConstants.darkCardSurface,
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppConstants.borderEmerald),
                         ),
-                        child: const Icon(Icons.bluetooth, color: AppConstants.primaryForest),
+                        child: const Icon(Icons.bluetooth, color: AppConstants.emerald),
                       ),
-                      title: Text(dev.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      title: Text(dev.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppConstants.cream)),
                       subtitle: Text(
                         'MAC: ${dev.id}  •  Signal: ${dev.rssi} dBm',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        style: const TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey),
                       ),
                       trailing: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppConstants.primaryForest,
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppConstants.emerald,
+                          foregroundColor: AppConstants.darkBg,
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -115,7 +118,7 @@ void showBleScanModal(BuildContext context, WidgetRef ref) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Connected to ${dev.name}! Streaming live sensor feed.'),
-                                backgroundColor: AppConstants.statusGreen,
+                                backgroundColor: AppConstants.emerald,
                               ),
                             );
                           }

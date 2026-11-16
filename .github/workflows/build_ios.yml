@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build OnionGuard (iOS & Android)
 
 on:
   workflow_dispatch:
@@ -6,6 +6,41 @@ on:
     branches: [ main, master, stable-restore ]
 
 jobs:
+  build-android:
+    name: Build Android Application (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnionGuard-Android-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
   build-ios:
     name: Build iOS Application (IPA)
     runs-on: macos-latest
