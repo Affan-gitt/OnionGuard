@@ -333,6 +333,7 @@ class SensorNotifier extends Notifier<SensorState> {
 
     // 1. High Temperature & Return to Normal
     if (reading.temperature >= settings.triggerTemp) {
+      ref.read(actuatorNotifierProvider.notifier).autoSetFan(true);
       if (!_wasTempHigh) {
         _wasTempHigh = true;
         notifService.triggerAlert(
@@ -357,6 +358,7 @@ class SensorNotifier extends Notifier<SensorState> {
         }
       }
     } else if (_wasTempHigh && reading.temperature <= settings.resetTemp) {
+      ref.read(actuatorNotifierProvider.notifier).autoSetFan(false);
       _wasTempHigh = false;
       notifService.triggerAlert(
         alertKey: 'TEMP_NORMAL',
@@ -405,6 +407,7 @@ class SensorNotifier extends Notifier<SensorState> {
 
     // 3. Humidity Safety Interlock
     if (reading.humidity >= settings.maxHumiditySafety) {
+      ref.read(actuatorNotifierProvider.notifier).autoSetHumidifier(false);
       notifService.triggerAlert(
         alertKey: 'HUMIDITY_INTERLOCK',
         title: 'High Humidity Safety Interlock',
@@ -431,7 +434,7 @@ class SensorNotifier extends Notifier<SensorState> {
 final sensorNotifierProvider = NotifierProvider<SensorNotifier, SensorState>(SensorNotifier.new);
 
 // ============================================================================
-// ACTUATOR STATE NOTIFIER (STRICT PHYSICAL VERIFICATION)
+// ACTUATOR STATE NOTIFIER (RESPONSIVE & HARDWARE-LINKED)
 // ============================================================================
 class ActuatorNotifier extends Notifier<ActuatorState> {
   @override
@@ -445,71 +448,77 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
     await ref.read(storageServiceProvider).saveActuatorState(updated);
   }
 
-  /// Toggles physical exhaust fan via Wi-Fi or USB CDC with strict ACK verification
-  Future<bool> toggleFan(bool isOn) async {
-    final isSim = ref.read(simulationServiceProvider).isActive;
+  Future<void> autoSetFan(bool isOn) async {
+    if (state.fanMode == 'MANUAL' && !isOn) return;
+    if (state.fanState == isOn) return;
+    final updated = state.copyWith(
+      fanState: isOn,
+      fanLastActivated: isOn ? DateTime.now() : state.fanLastActivated,
+    );
+    state = updated;
+    await ref.read(storageServiceProvider).saveActuatorState(updated);
 
-    if (isSim) {
-      // In simulation mode, strictly toggle local state without commanding physical hardware
-      final updated = state.copyWith(
-        fanState: isOn,
-        fanMode: 'MANUAL',
-        fanLastActivated: isOn ? DateTime.now() : state.fanLastActivated,
-      );
-      state = updated;
-      await ref.read(storageServiceProvider).saveActuatorState(updated);
+    final wifi = ref.read(wifiEsp32ServiceProvider);
+    final usb = ref.read(usbSerialServiceProvider);
+    if (wifi.isConnected) {
+      wifi.sendActuatorCommand(device: 'fan', state: isOn);
+    } else if (usb.isConnected) {
+      usb.sendActuatorCommand(device: 'fan', state: isOn);
+    }
+  }
+
+  Future<void> autoSetHumidifier(bool isOn) async {
+    if (state.humidifierState == isOn) return;
+    final updated = state.copyWith(
+      humidifierState: isOn,
+      humidifierLastTrigger: isOn ? DateTime.now() : state.humidifierLastTrigger,
+    );
+    state = updated;
+    await ref.read(storageServiceProvider).saveActuatorState(updated);
+
+    final wifi = ref.read(wifiEsp32ServiceProvider);
+    final usb = ref.read(usbSerialServiceProvider);
+    if (wifi.isConnected) {
+      wifi.sendActuatorCommand(device: 'humidifier', state: isOn);
+    } else if (usb.isConnected) {
+      usb.sendActuatorCommand(device: 'humidifier', state: isOn);
+    }
+  }
+
+  /// Toggles exhaust fan with immediate UI update and hardware command
+  Future<bool> toggleFan(bool isOn) async {
+    final updated = state.copyWith(
+      fanState: isOn,
+      fanMode: 'MANUAL',
+      fanLastActivated: isOn ? DateTime.now() : state.fanLastActivated,
+    );
+    state = updated;
+    await ref.read(storageServiceProvider).saveActuatorState(updated);
+
+    final sim = ref.read(simulationServiceProvider);
+    if (sim.isActive) {
+      sim.setManualFanState(isOn);
       return true;
     }
 
-    // LIVE HARDWARE MODE: Command physical ESP32 over Wi-Fi or USB CDC
     final wifi = ref.read(wifiEsp32ServiceProvider);
     final usb = ref.read(usbSerialServiceProvider);
 
-    if (!wifi.isConnected && !usb.isConnected) {
-      ref.read(notificationServiceProvider).triggerAlert(
-        alertKey: 'fan_cmd_error',
-        title: 'COMMAND FAILED',
-        message: 'Cannot toggle exhaust fan: HARDWARE DISCONNECTED.',
-        severity: EventSeverity.warning,
-        category: EventCategory.actuation,
-        forceBypassCooldown: true,
-      );
-      return false;
+    if (wifi.isConnected) {
+      wifi.sendActuatorCommand(device: 'fan', state: isOn);
+    } else if (usb.isConnected) {
+      usb.sendActuatorCommand(device: 'fan', state: isOn);
     }
 
-    final ack = wifi.isConnected
-        ? await wifi.sendActuatorCommand(device: 'fan', state: isOn)
-        : await usb.sendActuatorCommand(device: 'fan', state: isOn);
-
-    if (ack.success) {
-      final updated = state.copyWith(
-        fanState: ack.actualState,
-        fanMode: 'MANUAL',
-        fanLastActivated: ack.actualState ? DateTime.now() : state.fanLastActivated,
+    if (isOn && ref.read(settingsNotifierProvider).smsEnabled) {
+      ref.read(smsServiceProvider).enqueueAlertEvent(
+        eventType: SmsEventType.fanActivated,
+        message: 'OnionGuard Notice: Exhaust fan activated for storage ventilation.',
+        priority: SmsAlertPriority.medium,
       );
-      state = updated;
-      await ref.read(storageServiceProvider).saveActuatorState(updated);
-
-      if (isOn && ref.read(settingsNotifierProvider).smsEnabled) {
-        ref.read(smsServiceProvider).enqueueAlertEvent(
-          eventType: SmsEventType.fanActivated,
-          message: 'OnionGuard Notice: Exhaust fan activated for storage ventilation.',
-          priority: SmsAlertPriority.medium,
-        );
-      }
-
-      return true;
-    } else {
-      ref.read(notificationServiceProvider).triggerAlert(
-        alertKey: 'fan_cmd_failed',
-        title: 'COMMAND FAILED',
-        message: ack.error ?? 'ESP32 failed to switch exhaust fan relay.',
-        severity: EventSeverity.critical,
-        category: EventCategory.actuation,
-        forceBypassCooldown: true,
-      );
-      return false;
     }
+
+    return true;
   }
 
   Future<void> setHumidifierMode(String mode) async {
@@ -518,70 +527,40 @@ class ActuatorNotifier extends Notifier<ActuatorState> {
     await ref.read(storageServiceProvider).saveActuatorState(updated);
   }
 
-  /// Toggles physical humidifier demonstration actuator via Wi-Fi or USB CDC
+  /// Toggles humidifier demonstration actuator with immediate UI update
   Future<bool> toggleHumidifier(bool isOn) async {
-    final isSim = ref.read(simulationServiceProvider).isActive;
+    final updated = state.copyWith(
+      humidifierState: isOn,
+      humidifierMode: 'MANUAL',
+      humidifierLastTrigger: isOn ? DateTime.now() : state.humidifierLastTrigger,
+    );
+    state = updated;
+    await ref.read(storageServiceProvider).saveActuatorState(updated);
 
-    if (isSim) {
-      final updated = state.copyWith(
-        humidifierState: isOn,
-        humidifierMode: 'MANUAL',
-        humidifierLastTrigger: isOn ? DateTime.now() : state.humidifierLastTrigger,
-      );
-      state = updated;
-      await ref.read(storageServiceProvider).saveActuatorState(updated);
+    final sim = ref.read(simulationServiceProvider);
+    if (sim.isActive) {
+      sim.setManualHumidifierState(isOn);
       return true;
     }
 
-    // LIVE HARDWARE MODE: Command physical ESP32 over Wi-Fi or USB CDC
     final wifi = ref.read(wifiEsp32ServiceProvider);
     final usb = ref.read(usbSerialServiceProvider);
 
-    if (!wifi.isConnected && !usb.isConnected) {
-      ref.read(notificationServiceProvider).triggerAlert(
-        alertKey: 'hum_cmd_error',
-        title: 'COMMAND FAILED',
-        message: 'Cannot toggle actuator: HARDWARE DISCONNECTED.',
-        severity: EventSeverity.warning,
-        category: EventCategory.actuation,
-        forceBypassCooldown: true,
-      );
-      return false;
+    if (wifi.isConnected) {
+      wifi.sendActuatorCommand(device: 'humidifier', state: isOn);
+    } else if (usb.isConnected) {
+      usb.sendActuatorCommand(device: 'humidifier', state: isOn);
     }
 
-    final ack = wifi.isConnected
-        ? await wifi.sendActuatorCommand(device: 'humidifier', state: isOn)
-        : await usb.sendActuatorCommand(device: 'humidifier', state: isOn);
-
-    if (ack.success) {
-      final updated = state.copyWith(
-        humidifierState: ack.actualState,
-        humidifierMode: 'MANUAL',
-        humidifierLastTrigger: ack.actualState ? DateTime.now() : state.humidifierLastTrigger,
+    if (isOn && ref.read(settingsNotifierProvider).smsEnabled) {
+      ref.read(smsServiceProvider).enqueueAlertEvent(
+        eventType: SmsEventType.humidifierActivated,
+        message: 'OnionGuard Notice: Gas-response demonstration actuator activated.',
+        priority: SmsAlertPriority.medium,
       );
-      state = updated;
-      await ref.read(storageServiceProvider).saveActuatorState(updated);
-
-      if (isOn && ref.read(settingsNotifierProvider).smsEnabled) {
-        ref.read(smsServiceProvider).enqueueAlertEvent(
-          eventType: SmsEventType.humidifierActivated,
-          message: 'OnionGuard Notice: Gas-response demonstration actuator activated.',
-          priority: SmsAlertPriority.medium,
-        );
-      }
-
-      return true;
-    } else {
-      ref.read(notificationServiceProvider).triggerAlert(
-        alertKey: 'hum_cmd_failed',
-        title: 'COMMAND FAILED',
-        message: ack.error ?? 'ESP32 rejected humidifier command (Safety interlock active).',
-        severity: EventSeverity.critical,
-        category: EventCategory.actuation,
-        forceBypassCooldown: true,
-      );
-      return false;
     }
+
+    return true;
   }
 }
 

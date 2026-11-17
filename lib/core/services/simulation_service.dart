@@ -94,12 +94,31 @@ class SimulationService {
   Stream<SensorReading> get simReadingStream => _simReadingController.stream;
   Stream<bool> get stateChangeStream => _stateChangeController.stream;
 
+  void toggleSimulation() {
+    if (_isActive) {
+      stopSimulation();
+    } else {
+      startSimulation();
+    }
+  }
+
+  void setManualFanState(bool isOn) {
+    _simFanState = isOn;
+    _emitReading();
+  }
+
+  void setManualHumidifierState(bool isOn) {
+    _simHumidifierState = isOn;
+    _emitReading();
+  }
+
   void startSimulation() {
     _isActive = true;
     _isPaused = false;
     _stepCounter = 0;
     _applyScenarioDefaults(_currentScenario);
     _stateChangeController.add(true);
+    _emitReading();
 
     _simTimer?.cancel();
     final intervalMs = (1000 / _speedMultiplier).round().clamp(100, 2000);
@@ -288,6 +307,10 @@ class SimulationService {
         break;
     }
 
+    _emitReading();
+  }
+
+  void _emitReading() {
     _evaluateActuationLogic();
 
     final settings = _storageService.getSettings();

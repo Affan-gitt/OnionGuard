@@ -284,26 +284,30 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            _buildTabPill(0, 'Temp', Icons.thermostat),
-                            const SizedBox(width: 6),
-                            _buildTabPill(1, 'Humidity', Icons.water_drop_outlined),
-                            const SizedBox(width: 6),
-                            _buildTabPill(2, 'Gas ADC', Icons.science_outlined),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            _buildTimeFilterPill('1h'),
-                            _buildTimeFilterPill('6h'),
-                            _buildTimeFilterPill('24h'),
-                          ],
-                        ),
-                      ],
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              _buildTabPill(0, 'Temp', Icons.thermostat),
+                              const SizedBox(width: 6),
+                              _buildTabPill(1, 'Humidity', Icons.water_drop_outlined),
+                              const SizedBox(width: 6),
+                              _buildTabPill(2, 'Gas ADC', Icons.science_outlined),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          Row(
+                            children: [
+                              _buildTimeFilterPill('1h'),
+                              _buildTimeFilterPill('6h'),
+                              _buildTimeFilterPill('24h'),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 14),
                     SizedBox(
@@ -353,7 +357,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Average:', style: TextStyle(fontSize: 10, color: AppConstants.mutedGreenGrey)),
-              Text(avgVal, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: accentColor)),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(avgVal, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: accentColor)),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 3),
@@ -361,7 +370,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Min / Max:', style: TextStyle(fontSize: 10, color: AppConstants.mutedGreenGrey)),
-              Text('$minVal / $maxVal', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppConstants.cream)),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('$minVal / $maxVal', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppConstants.cream)),
+                ),
+              ),
             ],
           ),
         ],

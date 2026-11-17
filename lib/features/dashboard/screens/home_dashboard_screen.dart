@@ -22,33 +22,8 @@ class HomeDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
-  // Secret multi-tap gesture tracking for hidden demonstration control
-  int _secretTapCount = 0;
-  DateTime? _lastTapTime;
-
   String _timeRange = '5m';
   int _activeChartIndex = 0; // 0: Temp, 1: Humidity, 2: Gas ADC
-
-  void _handleLogoTap() {
-    final now = DateTime.now();
-    if (_lastTapTime == null || now.difference(_lastTapTime!).inMilliseconds > 2000) {
-      _secretTapCount = 1;
-    } else {
-      _secretTapCount++;
-    }
-    _lastTapTime = now;
-
-    if (_secretTapCount >= 5) {
-      _secretTapCount = 0;
-      final sim = ref.read(simulationServiceProvider);
-      if (sim.isActive) {
-        sim.stopSimulation();
-      } else {
-        sim.startSimulation();
-      }
-      HapticFeedback.heavyImpact();
-    }
-  }
 
   void _showConnectionModal(BuildContext context) {
     showModalBottomSheet(
@@ -242,111 +217,198 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        // Onion Guard Logo with Direct Tap Simulation Toggle
+                        AnimatedOnionLogo(
+                          size: 38,
+                          animateRings: true,
+                          showOrbitalRings: false,
+                          onTap: () {
+                            final sim = ref.read(simulationServiceProvider);
+                            sim.toggleSimulation();
+                            HapticFeedback.heavyImpact();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  sim.isActive
+                                      ? '⚡ Simulation Mode Active — Dynamic sensor stream generated!'
+                                      : 'Live Hardware Stream Restored.',
+                                ),
+                                backgroundColor: sim.isActive ? AppConstants.emerald : AppConstants.deepForest,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      AppConstants.appName.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.1,
+                                        color: AppConstants.cream,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: sensorState.isHardwareConnected
+                                          ? AppConstants.emerald
+                                          : (sensorState.isSimulation ? AppConstants.lime : AppConstants.statusCritical),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.lime)
+                                              .withValues(alpha: 0.6),
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                DateFormat('EEE, d MMM • HH:mm:ss').format(DateTime.now()),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppConstants.mutedGreenGrey,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Actions: Dedicated Hidden/Quick Simulation Button + Hardware Link Pill
                   Row(
                     children: [
-                      // Onion Guard Logo with Secret Multi-Tap Demonstration Switch
-                      AnimatedOnionLogo(
-                        size: 38,
-                        animateRings: true,
-                        showOrbitalRings: false,
-                        onTap: _handleLogoTap,
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                AppConstants.appName.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
-                                  color: AppConstants.cream,
-                                ),
+                      // Dedicated Simulation Button (swift simulation of readings)
+                      InkWell(
+                        onTap: () {
+                          final sim = ref.read(simulationServiceProvider);
+                          sim.toggleSimulation();
+                          HapticFeedback.mediumImpact();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                sim.isActive
+                                    ? '⚡ Simulation Active — Stimulating dynamic sensor stream!'
+                                    : 'Live Sensor Stream Restored.',
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: sensorState.isHardwareConnected
-                                      ? AppConstants.emerald
-                                      : (sensorState.isSimulation ? AppConstants.lime : AppConstants.statusCritical),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: (sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.lime)
-                                          .withValues(alpha: 0.6),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
+                              backgroundColor: sim.isActive ? AppConstants.emerald : AppConstants.deepForest,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: sensorState.isSimulation
+                                ? AppConstants.emerald.withValues(alpha: 0.22)
+                                : AppConstants.darkCard,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: sensorState.isSimulation ? AppConstants.lime : AppConstants.borderEmerald,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.bolt_rounded,
+                                size: 13,
+                                color: sensorState.isSimulation ? AppConstants.lime : AppConstants.mutedGreenGrey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                sensorState.isSimulation ? 'SIMULATING' : 'SIMULATE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                  color: sensorState.isSimulation ? AppConstants.lime : AppConstants.cream,
                                 ),
                               ),
                             ],
                           ),
-                          Text(
-                            DateFormat('EEE, d MMM • HH:mm:ss').format(DateTime.now()),
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w500,
-                              color: AppConstants.mutedGreenGrey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  // Hardware Link Button / Connection Badge
-                  InkWell(
-                    onTap: () => _showConnectionModal(context),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppConstants.darkCard,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: sensorState.isHardwareConnected
-                              ? AppConstants.emerald.withValues(alpha: 0.6)
-                              : AppConstants.borderEmerald,
-                          width: 1,
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            sensorState.isWifiConnected
-                                ? Icons.wifi
-                                : (sensorState.isUsbConnected
-                                    ? Icons.usb
-                                    : (sensorState.isBleConnected
-                                        ? Icons.bluetooth
-                                        : Icons.sensors_off)),
-                            size: 14,
-                            color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            sensorState.isWifiConnected
-                                ? 'WI-FI'
-                                : (sensorState.isUsbConnected
-                                    ? 'USB-C'
-                                    : (sensorState.isBleConnected
-                                        ? 'BLE'
-                                        : 'CONNECT')),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                      const SizedBox(width: 6),
+
+                      // Hardware Link Button / Connection Badge
+                      InkWell(
+                        onTap: () => _showConnectionModal(context),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppConstants.darkCard,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sensorState.isHardwareConnected
+                                  ? AppConstants.emerald.withValues(alpha: 0.6)
+                                  : AppConstants.borderEmerald,
+                              width: 1,
                             ),
                           ),
-                        ],
+                          child: Row(
+                            children: [
+                              Icon(
+                                sensorState.isWifiConnected
+                                    ? Icons.wifi
+                                    : (sensorState.isUsbConnected
+                                        ? Icons.usb
+                                        : (sensorState.isBleConnected
+                                            ? Icons.bluetooth
+                                            : Icons.sensors_off)),
+                                size: 13,
+                                color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                sensorState.isWifiConnected
+                                    ? 'WI-FI'
+                                    : (sensorState.isUsbConnected
+                                        ? 'USB-C'
+                                        : (sensorState.isBleConnected
+                                            ? 'BLE'
+                                            : 'CONNECT')),
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.4,
+                                  color: sensorState.isHardwareConnected ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -462,7 +524,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               // 5. SYSTEM STATUS & ACTUATOR CONTROLS
               // ==============================================================
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppConstants.darkCard,
                   borderRadius: BorderRadius.circular(16),
@@ -471,11 +533,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'SYSTEM ACTUATORS & HARDWARE STATE',
+                        const Text(
+                          'SYSTEM ACTUATORS & HARDWARE RELAYS',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -483,117 +545,208 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                             color: AppConstants.mutedGreenGrey,
                           ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (actuator.fanState || actuator.humidifierState ? AppConstants.emerald : AppConstants.statusGrey).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            actuator.fanState || actuator.humidifierState ? 'ACTIVE' : 'STANDBY',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: actuator.fanState || actuator.humidifierState ? AppConstants.emerald : AppConstants.statusGrey,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        // Exhaust Fan Card
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppConstants.darkCardSurface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: actuator.fanState
-                                    ? AppConstants.emerald.withValues(alpha: 0.5)
-                                    : AppConstants.borderSubtle,
-                              ),
-                            ),
-                            child: Row(
+                    const SizedBox(height: 12),
+
+                    // 1. Exhaust Fan Card (Full-width, 'Exhaust Fan' written together)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppConstants.darkCardSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: actuator.fanState
+                              ? AppConstants.emerald.withValues(alpha: 0.6)
+                              : AppConstants.borderEmerald.withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          AnimatedFanWidget(
+                            isRunning: actuator.fanState,
+                            size: 40,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                AnimatedFanWidget(
-                                  isRunning: actuator.fanState,
-                                  size: 36,
+                                const Text(
+                                  'Exhaust Fan',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppConstants.cream,
+                                    letterSpacing: 0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Exhaust Fan',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppConstants.cream),
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: actuator.fanState ? AppConstants.emerald : AppConstants.mutedGreenGrey,
                                       ),
-                                      Text(
-                                        actuator.fanState ? 'RUNNING (ON)' : 'IDLE (OFF)',
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        actuator.fanState ? 'VENTILATION ACTIVE (ON)' : 'STANDBY IDLE (OFF)',
                                         style: TextStyle(
-                                          fontSize: 9.5,
+                                          fontSize: 10.5,
                                           fontWeight: FontWeight.w600,
                                           color: actuator.fanState ? AppConstants.emerald : AppConstants.mutedGreenGrey,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                Switch.adaptive(
-                                  value: actuator.fanState,
-                                  activeColor: AppConstants.emerald,
-                                  onChanged: (val) {
-                                    ref.read(actuatorNotifierProvider.notifier).toggleFan(val);
-                                  },
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Humidifier / Demonstration Relay Card
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
-                              color: AppConstants.darkCardSurface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: actuator.humidifierState
-                                    ? AppConstants.lime.withValues(alpha: 0.5)
-                                    : AppConstants.borderSubtle,
-                              ),
+                              color: AppConstants.darkCard,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AppConstants.borderEmerald.withValues(alpha: 0.5)),
                             ),
-                            child: Row(
+                            child: Text(
+                              actuator.fanMode,
+                              style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppConstants.lime),
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: actuator.fanState,
+                            activeColor: AppConstants.emerald,
+                            onChanged: (val) {
+                              ref.read(actuatorNotifierProvider.notifier).toggleFan(val);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 2. Humidifier / Demonstration Actuator Card
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppConstants.darkCardSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isHumHigh
+                              ? AppConstants.statusCritical.withValues(alpha: 0.5)
+                              : (actuator.humidifierState
+                                  ? AppConstants.lime.withValues(alpha: 0.6)
+                                  : AppConstants.borderEmerald.withValues(alpha: 0.5)),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: (isHumHigh ? AppConstants.statusCritical : AppConstants.lime).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.cyclone,
+                              size: 24,
+                              color: isHumHigh ? AppConstants.statusCritical : (actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.cyclone,
-                                  size: 26,
-                                  color: actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Actuator',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppConstants.cream),
-                                      ),
-                                      Text(
-                                        actuator.humidifierState ? 'ACTIVE' : 'IDLE',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey,
-                                        ),
-                                      ),
-                                    ],
+                                const Text(
+                                  'Humidifier Actuator',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppConstants.cream,
+                                    letterSpacing: 0.2,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Switch.adaptive(
-                                  value: actuator.humidifierState,
-                                  activeColor: AppConstants.lime,
-                                  onChanged: isHumHigh
-                                      ? null
-                                      : (val) {
-                                          ref.read(actuatorNotifierProvider.notifier).toggleHumidifier(val);
-                                        },
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isHumHigh
+                                            ? AppConstants.statusCritical
+                                            : (actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        isHumHigh
+                                            ? 'LOCKED BY SAFETY INTERLOCK'
+                                            : (actuator.humidifierState ? 'RELAY ACTIVE (ON)' : 'STANDBY IDLE (OFF)'),
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: isHumHigh
+                                              ? AppConstants.statusCritical
+                                              : (actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                          Switch.adaptive(
+                            value: actuator.humidifierState,
+                            activeColor: AppConstants.lime,
+                            onChanged: isHumHigh
+                                ? null
+                                : (val) {
+                                    ref.read(actuatorNotifierProvider.notifier).toggleHumidifier(val);
+                                  },
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -613,27 +766,30 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Graph Header & Tabs
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            _buildChartTab(0, 'Temp', Icons.thermostat),
-                            const SizedBox(width: 6),
-                            _buildChartTab(1, 'Humidity', Icons.water_drop_outlined),
-                            const SizedBox(width: 6),
-                            _buildChartTab(2, 'Gas ADC', Icons.science_outlined),
-                          ],
-                        ),
-                        // Time Range Selector
-                        Row(
-                          children: [
-                            _buildTimeRangeButton('5m'),
-                            _buildTimeRangeButton('30m'),
-                          ],
-                        ),
-                      ],
+                    // Graph Header & Tabs (Scrollable so tabs never overflow)
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              _buildChartTab(0, 'Temp', Icons.thermostat),
+                              const SizedBox(width: 6),
+                              _buildChartTab(1, 'Humidity', Icons.water_drop_outlined),
+                              const SizedBox(width: 6),
+                              _buildChartTab(2, 'Gas ADC', Icons.science_outlined),
+                            ],
+                          ),
+                          const SizedBox(width: 16),
+                          Row(
+                            children: [
+                              _buildTimeRangeButton('5m'),
+                              _buildTimeRangeButton('30m'),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
 

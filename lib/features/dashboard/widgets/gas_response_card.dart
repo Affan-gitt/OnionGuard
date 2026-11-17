@@ -45,55 +45,67 @@ class GasResponseCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.science_outlined, size: 16, color: statusColor),
                     ),
-                    child: Icon(Icons.science_outlined, size: 16, color: statusColor),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'VOLATILE GAS SENSOR (MQ-3)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: AppConstants.cream,
-                        ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'VOLATILE GAS SENSOR (MQ-3)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: AppConstants.cream,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            'Alcohol / Spoilage Vapour Proxy',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppConstants.mutedGreenGrey.withValues(alpha: 0.8),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Alcohol / Spoilage Vapour Proxy',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w500,
-                          color: AppConstants.mutedGreenGrey.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.4), width: 0.8),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  isTriggered ? 'GAS ELEVATED' : 'BASELINE NORMAL',
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                    letterSpacing: 0.4,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.45), width: 0.9),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    isTriggered ? 'GAS ELEVATED' : 'BASELINE NORMAL',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 ),
               ),
@@ -119,13 +131,17 @@ class GasResponseCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      '${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toStringAsFixed(1)}%',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                        color: statusColor,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: statusColor,
+                        ),
                       ),
                     ),
                   ],

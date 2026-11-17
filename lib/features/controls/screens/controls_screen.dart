@@ -96,34 +96,42 @@ class _ControlsScreenState extends ConsumerState<ControlsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            AnimatedFanWidget(
-                              isRunning: actuator.fanState,
-                              size: 40,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Exhaust Ventilation Fan',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppConstants.cream,
-                                  ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              AnimatedFanWidget(
+                                isRunning: actuator.fanState,
+                                size: 40,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Exhaust Fan',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppConstants.cream,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      actuator.fanState ? 'Relay Active (GPIO 18 HIGH)' : 'Relay Idle (GPIO 18 LOW)',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        color: actuator.fanState ? AppConstants.emerald : AppConstants.mutedGreenGrey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  actuator.fanState ? 'Relay Active (GPIO 18 HIGH)' : 'Relay Idle (GPIO 18 LOW)',
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    color: actuator.fanState ? AppConstants.emerald : AppConstants.mutedGreenGrey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                         Switch.adaptive(
                           value: actuator.fanState,
@@ -198,45 +206,53 @@ class _ControlsScreenState extends ConsumerState<ControlsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: (isInterlocked ? AppConstants.statusCritical : AppConstants.lime).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.cyclone,
-                                size: 24,
-                                color: isInterlocked ? AppConstants.statusCritical : AppConstants.lime,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Gas-Response Actuator',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppConstants.cream,
-                                  ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: (isInterlocked ? AppConstants.statusCritical : AppConstants.lime).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                Text(
-                                  isInterlocked
-                                      ? 'LOCKED BY SAFETY INTERLOCK (RH >= ${settings.maxHumiditySafety}%)'
-                                      : (actuator.humidifierState ? 'Active (GPIO 19 HIGH)' : 'Idle (GPIO 19 LOW)'),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: isInterlocked ? AppConstants.statusCritical : (actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey),
-                                  ),
+                                child: Icon(
+                                  Icons.cyclone,
+                                  size: 24,
+                                  color: isInterlocked ? AppConstants.statusCritical : AppConstants.lime,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Gas-Response Actuator',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppConstants.cream,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      isInterlocked
+                                          ? 'LOCKED BY SAFETY (RH >= ${settings.maxHumiditySafety}%)'
+                                          : (actuator.humidifierState ? 'Active (GPIO 19 HIGH)' : 'Idle (GPIO 19 LOW)'),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: isInterlocked ? AppConstants.statusCritical : (actuator.humidifierState ? AppConstants.lime : AppConstants.mutedGreenGrey),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         Switch.adaptive(
                           value: actuator.humidifierState,
@@ -391,10 +407,24 @@ class _ControlsScreenState extends ConsumerState<ControlsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey)),
-          Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+          Expanded(
+            flex: 4,
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 11, color: AppConstants.mutedGreenGrey),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 5,
+            child: Text(
+              status,
+              textAlign: TextAlign.end,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
+            ),
+          ),
         ],
       ),
     );

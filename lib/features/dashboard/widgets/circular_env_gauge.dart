@@ -39,8 +39,7 @@ class CircularEnvGauge extends StatelessWidget {
     final thresholdFraction = range > 0 ? ((thresholdValue - minValue) / range).clamp(0.0, 1.0) : 0.7;
 
     return Container(
-      width: size,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         color: AppConstants.darkCard,
         borderRadius: BorderRadius.circular(18),
@@ -62,23 +61,27 @@ class CircularEnvGauge extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: activeColor),
               const SizedBox(width: 5),
-              Text(
-                label.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: AppConstants.mutedGreenGrey,
+              Flexible(
+                child: Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: AppConstants.mutedGreenGrey,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           // Animated Circular Arc
           SizedBox(
-            width: size - 30,
-            height: size - 30,
+            width: 110,
+            height: 110,
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 0.0, end: targetFraction),
               duration: const Duration(milliseconds: 900),
@@ -101,13 +104,16 @@ class CircularEnvGauge extends StatelessWidget {
                           tween: Tween<double>(begin: value, end: value),
                           duration: const Duration(milliseconds: 600),
                           builder: (context, animatedVal, child) {
-                            return Text(
-                              value > -100 ? animatedVal.toStringAsFixed(1) : '--',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: AppConstants.cream,
-                                letterSpacing: -0.5,
+                            return FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                value > -100 ? animatedVal.toStringAsFixed(1) : '--',
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppConstants.cream,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
                             );
                           },
@@ -116,7 +122,7 @@ class CircularEnvGauge extends StatelessWidget {
                           unit,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                             color: activeColor,
                           ),
                         ),
@@ -127,23 +133,27 @@ class CircularEnvGauge extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
 
-          // Status Badge / Threshold Label
+          // Conforming status badge based on text
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: activeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: activeColor.withValues(alpha: 0.35), width: 0.8),
+              color: activeColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: activeColor.withValues(alpha: 0.40), width: 0.9),
             ),
-            child: Text(
-              statusText,
-              style: TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: activeColor,
-                letterSpacing: 0.3,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                statusText,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: activeColor,
+                  letterSpacing: 0.3,
+                ),
+                maxLines: 1,
               ),
             ),
           ),
@@ -171,69 +181,61 @@ class _GaugeArcPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - 12) / 2;
-    const startAngle = 0.75 * math.pi; // 135 degrees
-    const totalSweep = 1.5 * math.pi;  // 270 degrees sweep
+    final radius = (size.width / 2) - 8;
+    const strokeWidth = 9.0;
+    const startAngle = 0.75 * math.pi;
+    const sweepAngle = 1.5 * math.pi;
 
-    // 1. Background track
+    // 1. Background Track
     final trackPaint = Paint()
       ..color = trackColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
+
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
-      totalSweep,
+      sweepAngle,
       false,
       trackPaint,
     );
 
-    // 2. Active arc with subtle glow
-    final activePaint = Paint()
-      ..shader = SweepGradient(
-        startAngle: startAngle,
-        endAngle: startAngle + totalSweep,
-        colors: [
-          arcColor.withValues(alpha: 0.7),
-          arcColor,
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
+    // 2. Active Progress Arc
+    if (fraction > 0) {
+      final activePaint = Paint()
+        ..color = arcColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle * fraction,
+        false,
+        activePaint,
+      );
+    }
+
+    // 3. Threshold Limit Tick Marker
+    final thresholdAngle = startAngle + (sweepAngle * thresholdFraction);
+    final tickInner = center + Offset(math.cos(thresholdAngle) * (radius - 5), math.sin(thresholdAngle) * (radius - 5));
+    final tickOuter = center + Offset(math.cos(thresholdAngle) * (radius + 5), math.sin(thresholdAngle) * (radius + 5));
+
+    final tickPaint = Paint()
+      ..color = thresholdColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
 
-    final sweep = (totalSweep * fraction).clamp(0.001, totalSweep);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweep,
-      false,
-      activePaint,
-    );
-
-    // 3. Threshold marker line
-    final threshAngle = startAngle + (totalSweep * thresholdFraction);
-    final markerPaint = Paint()
-      ..color = thresholdColor
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-
-    final p1 = Offset(
-      center.dx + (radius - 5) * math.cos(threshAngle),
-      center.dy + (radius - 5) * math.sin(threshAngle),
-    );
-    final p2 = Offset(
-      center.dx + (radius + 5) * math.cos(threshAngle),
-      center.dy + (radius + 5) * math.sin(threshAngle),
-    );
-    canvas.drawLine(p1, p2, markerPaint);
+    canvas.drawLine(tickInner, tickOuter, tickPaint);
   }
 
   @override
   bool shouldRepaint(covariant _GaugeArcPainter oldDelegate) {
     return oldDelegate.fraction != fraction ||
-        oldDelegate.arcColor != arcColor ||
-        oldDelegate.thresholdFraction != thresholdFraction;
+        oldDelegate.thresholdFraction != thresholdFraction ||
+        oldDelegate.arcColor != arcColor;
   }
 }
