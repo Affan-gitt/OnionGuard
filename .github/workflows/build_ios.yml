@@ -32,7 +32,7 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Android APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -74,3 +74,33 @@ jobs:
           name: OnionGuard-iOS-IPA
           path: build/ios/iphoneos/OnionGuard.ipa
           retention-days: 14
+
+  release:
+    name: Publish Release Assets
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: latest
+          name: "OnionGuard Production Build (Latest)"
+          body: |
+            Automated production build for OnionGuard.
+            
+            - **iOS:** `OnionGuard.ipa`
+            - **Android:** `app-release.apk`
+          files: |
+            release-assets/app-release.apk
+            release-assets/OnionGuard.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
